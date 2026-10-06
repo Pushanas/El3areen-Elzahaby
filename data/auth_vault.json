@@ -1,7 +1,7 @@
 {
-  "saltB64": "eIsF9C6s9IW/lJTGF9UH3w==",
-  "hashB64": "vO7O5Nbr+1jl0qUTHVDbKeiesJenK2IPXoRCagujCjs=",
+  "saltB64": "Bijn2gjyA5a1Qg42bffRhw==",
+  "hashB64": "Jvo8tZxpSXEKTrTqI3nO5vSZov+dz4NRUFOBVYaPGxw=",
   "iterations": 210000,
-  "sessionVersion": "init_v1",
-  "updatedAt": "2026-10-05T21:12:31.334Z"
+  "sessionVersion": "epoch_1791307003322_5474b3c2995e",
+  "updatedAt": "2026-10-06T17:16:43.000Z"
 }

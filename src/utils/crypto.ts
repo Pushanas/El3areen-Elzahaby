@@ -1,8 +1,8 @@
 // Unified Master Cryptographic Engine & Server Sync for Al-Areen Al-Dahabi
 
 const DEFAULT_VAULT = {
-  saltB64: 'eIsF9C6s9IW/lJTGF9UH3w==',
-  hashB64: 'vO7O5Nbr+1jl0qUTHVDbKeiesJenK2IPXoRCagujCjs=',
+  saltB64: 'Bijn2gjyA5a1Qg42bffRhw==',
+  hashB64: 'Jvo8tZxpSXEKTrTqI3nO5vSZov+dz4NRUFOBVYaPGxw=',
   iterations: 210000,
 };
 

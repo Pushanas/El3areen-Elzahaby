@@ -23,12 +23,12 @@ interface VaultData {
   updatedAt: string;
 }
 
-// Initial Default Vault configuration (Password: Areen@Gold2026)
+// Initial Default Vault configuration (Password: Areen#Royal2026!Vip)
 const INITIAL_VAULT: VaultData = {
-  saltB64: 'eIsF9C6s9IW/lJTGF9UH3w==',
-  hashB64: 'vO7O5Nbr+1jl0qUTHVDbKeiesJenK2IPXoRCagujCjs=',
+  saltB64: 'Bijn2gjyA5a1Qg42bffRhw==',
+  hashB64: 'Jvo8tZxpSXEKTrTqI3nO5vSZov+dz4NRUFOBVYaPGxw=',
   iterations: 210000,
-  sessionVersion: 'init_v1',
+  sessionVersion: 'epoch_1791307003322_5474b3c2995e',
   updatedAt: new Date().toISOString(),
 };
 
