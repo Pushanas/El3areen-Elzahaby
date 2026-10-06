@@ -1,8 +1,9 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Zap, SlidersHorizontal, ListFilter, Calculator, Copy, Send, Sparkles, Clock, CheckCircle2, ArrowUpRight, ArrowDownRight } from 'lucide-react';
+import { Zap, SlidersHorizontal, ListFilter, Calculator, Copy, Send, Sparkles, Clock, CheckCircle2, ArrowUpRight, ArrowDownRight, Timer } from 'lucide-react';
 import { LoginView } from './components/LoginView';
 import { Header } from './components/Header';
 import { GeneratorPanel } from './components/GeneratorPanel';
+import { RangeGeneratorView } from './components/RangeGeneratorView';
 import { ActiveSignalCard } from './components/ActiveSignalCard';
 import { SignalsTable } from './components/SignalsTable';
 import { RiskCalculatorView } from './components/RiskCalculatorView';
@@ -12,6 +13,7 @@ import { DEFAULT_PAIRS } from './constants/pairs';
 import { GeneratorConfig, SignalItem, SignalResult } from './types';
 import { playCountdownBeep, playEntryFanfare } from './utils/audio';
 import { checkSessionValidity } from './utils/crypto';
+import { formatSingleSignalMono } from './utils/formatter';
 
 const INACTIVITY_TIMEOUT_MS = 15 * 60 * 1000; // 15 mins
 
@@ -26,8 +28,8 @@ export default function App() {
     return localStorage.getItem('areen_sound_enabled') !== 'false';
   });
 
-  // Mobile Bottom Navigation Tabs: 'live' | 'generator' | 'table' | 'calculator'
-  const [activeTab, setActiveTab] = useState<'live' | 'generator' | 'table' | 'calculator'>('live');
+  // Mobile Bottom Navigation Tabs: 'live' | 'generator' | 'range' | 'table' | 'calculator'
+  const [activeTab, setActiveTab] = useState<'live' | 'generator' | 'range' | 'table' | 'calculator'>('live');
 
   const [availablePairs, setAvailablePairs] = useState<string[]>(() => {
     const saved = localStorage.getItem('areen_custom_pairs');
@@ -137,6 +139,12 @@ export default function App() {
       ...prev,
       selectedPairs: [pairName, ...prev.selectedPairs],
     }));
+  };
+
+  // Import range signals to live tracker
+  const handleImportRangeSignals = (importedSignals: SignalItem[]) => {
+    setSignals(importedSignals);
+    setActiveTab('live');
   };
 
   // Seeded direction algorithm
@@ -259,7 +267,7 @@ export default function App() {
 
   // Copy single signal
   const handleCopySingle = async (item: SignalItem) => {
-    const text = `⧉ ${item.timeframe};${item.pair.replace('/', '').replace(' OTC', '')}•${item.timeStr};${item.direction}`;
+    const text = formatSingleSignalMono(item);
     try {
       await navigator.clipboard.writeText(text);
       setCopiedId(item.id);
@@ -417,7 +425,7 @@ export default function App() {
             </div>
           )}
 
-          {/* TAB 2: GENERATOR (المولّد) */}
+          {/* TAB 2: GENERATOR (المولّد القياسي) */}
           {activeTab === 'generator' && (
             <GeneratorPanel
               config={config}
@@ -430,7 +438,12 @@ export default function App() {
             />
           )}
 
-          {/* TAB 3: SIGNALS TABLE (الجدول الكامل) */}
+          {/* TAB 3: RANGE GENERATOR (مولّد النطاق الزمني) */}
+          {activeTab === 'range' && (
+            <RangeGeneratorView onImportToLiveTracker={handleImportRangeSignals} />
+          )}
+
+          {/* TAB 4: SIGNALS TABLE (الجدول الكامل) */}
           {activeTab === 'table' && (
             <SignalsTable
               signals={signals}
@@ -441,63 +454,76 @@ export default function App() {
             />
           )}
 
-          {/* TAB 4: RISK CALCULATOR (إدارة رأس المال) */}
+          {/* TAB 5: RISK CALCULATOR (إدارة رأس المال) */}
           {activeTab === 'calculator' && <RiskCalculatorView />}
         </main>
 
-        {/* Fixed Mobile Bottom Tab Bar (Thumb Zone) */}
-        <nav className="fixed bottom-0 max-w-[480px] w-full bg-[#0a0805]/95 backdrop-blur-md border-t border-[#d4af37]/25 z-40 px-2 py-1.5 shadow-[0_-5px_20px_rgba(0,0,0,0.8)]">
-          <div className="grid grid-cols-4 items-center gap-1">
+        {/* Fixed Mobile Bottom Tab Bar (Thumb Zone - 5 Tabs) */}
+        <nav className="fixed bottom-0 max-w-[480px] w-full bg-[#0a0805]/95 backdrop-blur-md border-t border-[#d4af37]/25 z-40 px-1.5 py-1.5 shadow-[0_-5px_20px_rgba(0,0,0,0.8)]">
+          <div className="grid grid-cols-5 items-center gap-1">
             {/* Tab 1: Live */}
             <button
               onClick={() => setActiveTab('live')}
-              className={`py-1.5 flex flex-col items-center justify-center rounded-xl transition-all cursor-pointer ${
+              className={`py-1.5 px-0.5 flex flex-col items-center justify-center rounded-xl transition-all cursor-pointer ${
                 activeTab === 'live'
                   ? 'text-[#ffd700] bg-[#22180a] border border-[#d4af37]/40 shadow-[0_0_10px_rgba(212,175,55,0.15)] font-bold'
                   : 'text-[#8e7e60] hover:text-[#d4af37]'
               }`}
             >
-              <Zap className="w-4 h-4 mb-0.5" />
-              <span className="text-[10px] leading-tight">الإشارة الحية</span>
+              <Zap className="w-3.5 h-3.5 mb-0.5" />
+              <span className="text-[9px] leading-tight">الحية</span>
             </button>
 
             {/* Tab 2: Generator */}
             <button
               onClick={() => setActiveTab('generator')}
-              className={`py-1.5 flex flex-col items-center justify-center rounded-xl transition-all cursor-pointer ${
+              className={`py-1.5 px-0.5 flex flex-col items-center justify-center rounded-xl transition-all cursor-pointer ${
                 activeTab === 'generator'
                   ? 'text-[#ffd700] bg-[#22180a] border border-[#d4af37]/40 shadow-[0_0_10px_rgba(212,175,55,0.15)] font-bold'
                   : 'text-[#8e7e60] hover:text-[#d4af37]'
               }`}
             >
-              <SlidersHorizontal className="w-4 h-4 mb-0.5" />
-              <span className="text-[10px] leading-tight">المولّد</span>
+              <SlidersHorizontal className="w-3.5 h-3.5 mb-0.5" />
+              <span className="text-[9px] leading-tight">المولّد</span>
             </button>
 
-            {/* Tab 3: Table */}
+            {/* Tab 3: Strategy Range Generator */}
+            <button
+              onClick={() => setActiveTab('range')}
+              className={`py-1.5 px-0.5 flex flex-col items-center justify-center rounded-xl transition-all cursor-pointer ${
+                activeTab === 'range'
+                  ? 'text-[#ffd700] bg-[#22180a] border border-[#d4af37]/40 shadow-[0_0_10px_rgba(212,175,55,0.15)] font-bold'
+                  : 'text-[#8e7e60] hover:text-[#d4af37]'
+              }`}
+            >
+              <Timer className="w-3.5 h-3.5 mb-0.5" />
+              <span className="text-[8px] leading-tight font-bold text-center">استراتيجية العرين الذهبي</span>
+            </button>
+
+            {/* Tab 4: Table */}
             <button
               onClick={() => setActiveTab('table')}
-              className={`py-1.5 flex flex-col items-center justify-center rounded-xl transition-all cursor-pointer ${
+              className={`py-1.5 px-0.5 flex flex-col items-center justify-center rounded-xl transition-all cursor-pointer ${
                 activeTab === 'table'
                   ? 'text-[#ffd700] bg-[#22180a] border border-[#d4af37]/40 shadow-[0_0_10px_rgba(212,175,55,0.15)] font-bold'
                   : 'text-[#8e7e60] hover:text-[#d4af37]'
               }`}
             >
-              <ListFilter className="w-4 h-4 mb-0.5" />
-              <span className="text-[10px] leading-tight">الجدول ({signals.length})</span>
+              <ListFilter className="w-3.5 h-3.5 mb-0.5" />
+              <span className="text-[9px] leading-tight">الجدول</span>
             </button>
 
-            {/* Tab 4: Calculator */}
+            {/* Tab 5: Calculator */}
             <button
               onClick={() => setActiveTab('calculator')}
-              className={`py-1.5 flex flex-col items-center justify-center rounded-xl transition-all cursor-pointer ${
+              className={`py-1.5 px-0.5 flex flex-col items-center justify-center rounded-xl transition-all cursor-pointer ${
                 activeTab === 'calculator'
                   ? 'text-[#ffd700] bg-[#22180a] border border-[#d4af37]/40 shadow-[0_0_10px_rgba(212,175,55,0.15)] font-bold'
                   : 'text-[#8e7e60] hover:text-[#d4af37]'
               }`}
             >
-              <Calculator className="w-4 h-4 mb-0.5" />
-              <span className="text-[10px] leading-tight">الحاسبة</span>
+              <Calculator className="w-3.5 h-3.5 mb-0.5" />
+              <span className="text-[9px] leading-tight">الحاسبة</span>
             </button>
           </div>
         </nav>

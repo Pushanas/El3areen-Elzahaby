@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Sparkles, CheckSquare, Square, Plus, Copy, Search, Zap } from 'lucide-react';
+import { Sparkles, CheckSquare, Square, Plus, Copy, Search, Zap, ShieldAlert, Clock } from 'lucide-react';
 import { GeneratorConfig, MartingaleType, TimeFrame } from '../types';
 
 interface GeneratorPanelProps {
@@ -58,8 +58,27 @@ export const GeneratorPanel: React.FC<GeneratorPanelProps> = ({
     setShowAddPair(false);
   };
 
+  // Handle Timeframe change with mandatory M5 interval rule (8 to 15 mins)
+  const handleTimeframeChange = (tf: TimeFrame) => {
+    if (tf === 'M5') {
+      const newGap = config.gapMinutes < 8 || config.gapMinutes > 15 ? 10 : config.gapMinutes;
+      onChangeConfig({
+        ...config,
+        timeframe: 'M5',
+        gapMinutes: newGap,
+      });
+    } else {
+      const newGap = config.gapMinutes > 5 ? 5 : config.gapMinutes;
+      onChangeConfig({
+        ...config,
+        timeframe: 'M1',
+        gapMinutes: newGap,
+      });
+    }
+  };
+
   return (
-    <div className="bg-gradient-to-b from-[#151009] to-[#0e0b07] border border-[#d4af37]/25 rounded-2xl p-4 shadow-[0_10px_30px_rgba(0,0,0,0.5)] space-y-4">
+    <div className="bg-gradient-to-b from-[#151009] to-[#0e0b07] border border-[#d4af37]/25 rounded-2xl p-4 shadow-[0_10px_30px_rgba(0,0,0,0.5)] space-y-3.5">
       {/* Title & Count Badge */}
       <div className="flex items-center justify-between border-b border-[#d4af37]/15 pb-2.5">
         <div className="flex items-center gap-2">
@@ -68,7 +87,7 @@ export const GeneratorPanel: React.FC<GeneratorPanelProps> = ({
           </div>
           <div>
             <h2 className="text-sm font-bold text-[#fbf7ee]">
-              إعداد وتوليد الصفقات
+              مولّد صفقات العرين الذهبي
             </h2>
             <p className="text-[10px] text-[#9c8963]">
               توليد صفقات زمنية دقيقة لأسواق الـ OTC
@@ -81,7 +100,7 @@ export const GeneratorPanel: React.FC<GeneratorPanelProps> = ({
         </span>
       </div>
 
-      {/* Main Parameters Grid - 2x2 for mobile */}
+      {/* Main Parameters Grid - 2x2 */}
       <div className="grid grid-cols-2 gap-2.5 text-right">
         {/* Trade Count */}
         <div className="space-y-1">
@@ -103,23 +122,52 @@ export const GeneratorPanel: React.FC<GeneratorPanelProps> = ({
           />
         </div>
 
-        {/* Gap interval */}
+        {/* Timeframe selector (M1 vs M5) */}
         <div className="space-y-1">
           <label className="block text-[11px] font-semibold text-[#cfb780]">
-            الفاصل الزمني
+            فريم الشمعة (مدة الصفقة)
+          </label>
+          <select
+            value={config.timeframe}
+            onChange={(e) => handleTimeframeChange(e.target.value as TimeFrame)}
+            className="w-full py-2 px-2 rounded-xl bg-[#090704] border border-[#d4af37]/25 text-[#ffd700] text-[11px] font-bold focus:outline-none focus:border-[#ffd700]"
+          >
+            <option value="M1">دقيقة واحدة (M1)</option>
+            <option value="M5">5 دقائق (M5) — احترافي</option>
+          </select>
+        </div>
+
+        {/* Gap interval - Mandatory 8-15 mins for M5 */}
+        <div className="space-y-1">
+          <label className="block text-[11px] font-semibold text-[#cfb780] flex items-center justify-between">
+            <span>الفاصل الزمني</span>
+            {config.timeframe === 'M5' && (
+              <span className="text-[9px] text-[#ffd700] font-bold">إجباري 8-15 دقيقة</span>
+            )}
           </label>
           <select
             value={config.gapMinutes}
             onChange={(e) =>
-              onChangeConfig({ ...config, gapMinutes: parseInt(e.target.value) || 5 })
+              onChangeConfig({ ...config, gapMinutes: parseInt(e.target.value) || (config.timeframe === 'M5' ? 10 : 5) })
             }
             className="w-full py-2 px-2 rounded-xl bg-[#090704] border border-[#d4af37]/25 text-white text-[11px] font-semibold focus:outline-none focus:border-[#ffd700]"
           >
-            <option value="1">كل دقيقة (M1)</option>
-            <option value="2">كل دقيقتين</option>
-            <option value="3">كل 3 دقائق</option>
-            <option value="5">كل 5 دقائق</option>
-            <option value="10">كل 10 دقائق</option>
+            {config.timeframe === 'M5' ? (
+              <>
+                <option value="8">كل 8 دقائق (الحد الأدنى لـ M5)</option>
+                <option value="10">كل 10 دقائق (موصى به لصفقات M5)</option>
+                <option value="12">كل 12 دقيقة (نقاء عالي)</option>
+                <option value="15">كل 15 دقيقة (أقصى أمان)</option>
+              </>
+            ) : (
+              <>
+                <option value="1">كل دقيقة (M1)</option>
+                <option value="2">كل دقيقتين</option>
+                <option value="3">كل 3 دقائق</option>
+                <option value="5">كل 5 دقائق</option>
+                <option value="10">كل 10 دقائق</option>
+              </>
+            )}
           </select>
         </div>
 
@@ -140,24 +188,17 @@ export const GeneratorPanel: React.FC<GeneratorPanelProps> = ({
             <option value="MTG 2">مضاعفتان (MTG 2)</option>
           </select>
         </div>
-
-        {/* Timeframe */}
-        <div className="space-y-1">
-          <label className="block text-[11px] font-semibold text-[#cfb780]">
-            فريم الشمعة
-          </label>
-          <select
-            value={config.timeframe}
-            onChange={(e) =>
-              onChangeConfig({ ...config, timeframe: e.target.value as TimeFrame })
-            }
-            className="w-full py-2 px-2 rounded-xl bg-[#090704] border border-[#d4af37]/25 text-white text-[11px] font-semibold focus:outline-none focus:border-[#ffd700]"
-          >
-            <option value="M1">دقيقة واحدة (M1)</option>
-            <option value="M5">5 دقائق (M5)</option>
-          </select>
-        </div>
       </div>
+
+      {/* M5 Safety Notification Banner */}
+      {config.timeframe === 'M5' && (
+        <div className="p-2 rounded-xl bg-[#2a1708] border border-[#d4af37]/30 text-[10px] text-[#ffd700] flex items-center gap-1.5 leading-relaxed">
+          <Clock className="w-3.5 h-3.5 shrink-0 text-[#ffd700]" />
+          <span>
+            <b>نظام صفقات الـ 5 دقائق (M5):</b> الفاصل الزمني محدد إجبارياً بين <b>8 إلى 15 دقيقة</b> لضمان إغلاق الشمعة وتجنب تداخل الإشارات.
+          </span>
+        </div>
+      )}
 
       {/* Pairs Picker */}
       <div className="space-y-2">
@@ -262,7 +303,7 @@ export const GeneratorPanel: React.FC<GeneratorPanelProps> = ({
           className="w-full py-3 px-4 rounded-xl font-bold text-xs bg-gradient-to-r from-[#ffd700] via-[#d4af37] to-[#aa8313] text-[#080705] hover:brightness-110 active:scale-[0.99] transition-all shadow-[0_4px_15px_rgba(212,175,55,0.25)] flex items-center justify-center gap-1.5 cursor-pointer"
         >
           <Zap className="w-4 h-4" />
-          <span>⚡ إنشاء وتحديث جدول صفقات العرين</span>
+          <span>⚡ إنشاء وتحديث جدول صفقات العرين ({config.timeframe})</span>
         </button>
 
         {hasSchedule && (
@@ -272,7 +313,7 @@ export const GeneratorPanel: React.FC<GeneratorPanelProps> = ({
             className="w-full py-2.5 px-4 rounded-xl font-bold text-xs bg-[#1f170c] hover:bg-[#2b2010] text-[#ffd700] border border-[#d4af37]/40 flex items-center justify-center gap-1.5 transition-colors cursor-pointer"
           >
             <Copy className="w-3.5 h-3.5" />
-            <span>⧉ نسخ وإرسال القائمة (تيليجرام / VIP)</span>
+            <span>⧉ نسخ وإرسال القائمة المزخرفة للتيليجرام</span>
           </button>
         )}
       </div>

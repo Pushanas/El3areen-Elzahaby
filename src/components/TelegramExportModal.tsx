@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { X, Copy, Check, Send, Sparkles, FileText, CheckCircle2 } from 'lucide-react';
-import { SignalItem, MartingaleType, FormatStyle } from '../types';
+import { SignalItem, MartingaleType } from '../types';
+import { formatAreenDecoratedTelegram, formatSingleSignalMono } from '../utils/formatter';
 
 interface TelegramExportModalProps {
   isOpen: boolean;
@@ -16,64 +17,40 @@ export const TelegramExportModal: React.FC<TelegramExportModalProps> = ({
   martingale,
 }) => {
   const [copied, setCopied] = useState(false);
-  const [style, setStyle] = useState<FormatStyle>('vip');
+  const [style, setStyle] = useState<'areen_mono' | 'standard' | 'minimal'>('areen_mono');
 
   if (!isOpen) return null;
-
-  const pad = (n: number) => String(n).padStart(2, '0');
 
   const generateFormattedText = () => {
     if (signals.length === 0) return 'لا توجد صفقات حالياً';
 
+    const firstTf = signals[0]?.timeframe || 'M1';
+
+    if (style === 'areen_mono') {
+      return formatAreenDecoratedTelegram(signals, {
+        timeframe: firstTf,
+        martingale,
+        utcOffset: '+03:00',
+      });
+    }
+
     if (style === 'minimal') {
-      return signals
-        .map(
-          (s) =>
-            `${s.pair.replace('/', '').replace(' OTC', '')} | ${s.timeStr} | ${s.direction} | ${s.martingale}`
-        )
-        .join('\n');
+      return signals.map(formatSingleSignalMono).join('\n');
     }
 
     if (style === 'standard') {
-      const header = `⧉ AL-AREEN SIGNALS (${signals.length} TRADES)\n`;
+      const header = `⧉ AL-AREEN SIGNALS (${signals.length} TRADES - ${firstTf})\n`;
       const body = signals
         .map((s) => {
-          const pairClean = s.pair.replace('/', '').replace(' OTC', '');
-          return `M1;${pairClean}•${s.timeStr};${s.direction}`;
+          const pairClean = s.pair.replace('/', '').replace(' OTC', '').replace('-OTC', '');
+          return `${firstTf};${pairClean}•${s.timeStr};${s.direction}`;
         })
         .join('\n');
-      const footer = `\n${martingale} • OTC OTC`;
+      const footer = `\n${martingale} • OTC`;
       return header + body + footer;
     }
 
-    // Royal VIP format for "العرين الذهبي"
-    const header = `👑 منظومة العرين الذهبي — AL-AREEN AL-DAHABI 👑
-⚜️ جدول الصفقات الزمنية الملكية ⚜️
-━━━━━━━━━━━━━━━━━━━━
-📊 التوقيت: بتوقيت الجهاز المحلي
-⚡ عدد الصفقات: ${signals.length} صفقات
-⏱️ مدة الشمعة: دقيقة واحدة (M1)
-🛡️ نظام المضاعفة: ${martingale}
-━━━━━━━━━━━━━━━━━━━━
-`;
-
-    const body = signals
-      .map((s) => {
-        const cleanPair = s.pair.replace('/', '').replace(' OTC', '');
-        const arrow = s.direction === 'CALL' ? '🟢 صعود CALL' : '🔴 هبوط PUT';
-        return `⧉ M1;${cleanPair}•${s.timeStr};${s.direction}  (${arrow})`;
-      })
-      .join('\n');
-
-    const footer = `
-━━━━━━━━━━━━━━━━━━━━
-🦁 قواعد العرين الذهبي:
-1️⃣ الدخول مع أول ثانية تفتح فيها الشمعة.
-2️⃣ الالتزام بإدارة رأس المال (1% إلى 3% كحد أقصى).
-3️⃣ تجنب الدخول في أوقات الأخبار الاقتصادية العنيفة.
-✨ بالتوفيق للجميع في عرين الأرباح الذهبية ✨`;
-
-    return header + body + footer;
+    return formatAreenDecoratedTelegram(signals, { timeframe: firstTf, martingale });
   };
 
   const textToCopy = generateFormattedText();
@@ -84,7 +61,6 @@ export const TelegramExportModal: React.FC<TelegramExportModalProps> = ({
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
     } catch {
-      // Fallback
       const ta = document.createElement('textarea');
       ta.value = textToCopy;
       document.body.appendChild(ta);
@@ -115,7 +91,7 @@ export const TelegramExportModal: React.FC<TelegramExportModalProps> = ({
                 تصدير صفقات العرين الذهبي
               </h3>
               <p className="text-[10px] text-[#9c8963]">
-                صيغ جاهزة للنشر في قنوات التيليجرام
+                صيغ مزخرفة جاهزة للنشر الفوري في قنوات التيليجرام
               </p>
             </div>
           </div>
@@ -131,14 +107,24 @@ export const TelegramExportModal: React.FC<TelegramExportModalProps> = ({
         <div className="flex items-center gap-1.5 mt-3 text-[11px] overflow-x-auto pb-1">
           <span className="text-[#a49169] shrink-0 font-semibold">التنسيق:</span>
           <button
-            onClick={() => setStyle('vip')}
+            onClick={() => setStyle('areen_mono')}
             className={`px-2.5 py-1 rounded-lg font-bold shrink-0 transition-all cursor-pointer ${
-              style === 'vip'
+              style === 'areen_mono'
                 ? 'bg-[#ffd700] text-[#080705] shadow-sm'
                 : 'bg-[#151009] text-[#baa274] border border-[#d4af37]/20 hover:text-white'
             }`}
           >
-            👑 مزخرف VIP
+            👑 مزخرف 𝚄𝚃𝙲 العرين
+          </button>
+          <button
+            onClick={() => setStyle('minimal')}
+            className={`px-2.5 py-1 rounded-lg font-bold shrink-0 transition-all cursor-pointer ${
+              style === 'minimal'
+                ? 'bg-[#ffd700] text-[#080705] shadow-sm'
+                : 'bg-[#151009] text-[#baa274] border border-[#d4af37]/20 hover:text-white'
+            }`}
+          >
+            ❒ قائمة مونو فقط
           </button>
           <button
             onClick={() => setStyle('standard')}
@@ -149,16 +135,6 @@ export const TelegramExportModal: React.FC<TelegramExportModalProps> = ({
             }`}
           >
             📋 كوتيكس قياسي
-          </button>
-          <button
-            onClick={() => setStyle('minimal')}
-            className={`px-2.5 py-1 rounded-lg font-bold shrink-0 transition-all cursor-pointer ${
-              style === 'minimal'
-                ? 'bg-[#ffd700] text-[#080705] shadow-sm'
-                : 'bg-[#151009] text-[#baa274] border border-[#d4af37]/20 hover:text-white'
-            }`}
-          >
-            ⚡ بسيط
           </button>
         </div>
 
@@ -172,30 +148,30 @@ export const TelegramExportModal: React.FC<TelegramExportModalProps> = ({
         </div>
 
         {/* Modal Actions */}
-        <div className="mt-4 pt-3 border-t border-[#d4af37]/20 flex flex-col sm:flex-row items-center gap-2.5">
+        <div className="mt-3 pt-2.5 border-t border-[#d4af37]/20 flex items-center gap-2">
           <button
             onClick={handleCopy}
-            className="w-full sm:flex-1 py-3 px-4 rounded-xl font-bold text-xs bg-gradient-to-r from-[#ffd700] via-[#d4af37] to-[#aa8313] text-[#080705] hover:brightness-110 flex items-center justify-center gap-2 cursor-pointer shadow-md"
+            className="flex-1 py-2.5 px-3 rounded-xl font-bold text-xs bg-gradient-to-r from-[#ffd700] via-[#d4af37] to-[#aa8313] text-[#080705] hover:brightness-110 flex items-center justify-center gap-1.5 transition-all cursor-pointer shadow-md"
           >
             {copied ? (
               <>
-                <CheckCircle2 className="w-4 h-4 text-[#080705]" />
-                <span>تم نسخ نص العرين بنجاح!</span>
+                <Check className="w-3.5 h-3.5" />
+                <span>تم النسخ بنجاح!</span>
               </>
             ) : (
               <>
-                <Copy className="w-4 h-4" />
-                <span>⧉ نسخ نص صفقات العرين الآن</span>
+                <Copy className="w-3.5 h-3.5" />
+                <span>⧉ نسخ النص المزخرف</span>
               </>
             )}
           </button>
 
           <button
             onClick={handleTelegramShare}
-            className="w-full sm:w-auto py-3 px-4 rounded-xl font-bold text-xs bg-[#229ED9] hover:bg-[#1e8bc0] text-white flex items-center justify-center gap-1.5 cursor-pointer transition-colors"
+            className="flex-1 py-2.5 px-3 rounded-xl font-bold text-xs bg-[#229ED9] hover:bg-[#1e8bc0] text-white flex items-center justify-center gap-1.5 transition-colors cursor-pointer shadow-md"
           >
-            <Send className="w-4 h-4" />
-            <span>مشاركة بالتيليجرام</span>
+            <Send className="w-3.5 h-3.5" />
+            <span>مشاركة في تيليجرام</span>
           </button>
         </div>
       </div>
