@@ -63,6 +63,17 @@ export default function App() {
     localStorage.removeItem('areen_custom_pin');
   }, []);
 
+  const handleForcedKickout = (msg?: string) => {
+    setIsAuthenticated(false);
+    sessionStorage.removeItem('areen_session_auth');
+    sessionStorage.removeItem('areen_session_version');
+    localStorage.removeItem('areen_session_auth');
+    setSignals([]);
+    setKickoutAlert(
+      msg || '⚠️ تم تغيير كلمة المرور الموحدة للعرين الذهبي. تم طرد جلستك من هذا الجهاز/المتصفح فوراً، يرجى إدخال كلمة المرور الجديدة للمتابعة.'
+    );
+  };
+
   const handleLoginSuccess = () => {
     setIsAuthenticated(true);
     setKickoutAlert(null);
@@ -75,26 +86,55 @@ export default function App() {
     sessionStorage.removeItem('areen_session_auth');
   };
 
-  // Cross-device session check: Immediately kicks out any device if the master password was changed
+  // Cross-device and background-tab session check:
+  // Immediately kicks out any open Google Chrome tab, background worker, or bot when password changes
   useEffect(() => {
     if (!isAuthenticated) return;
 
-    const checkInterval = setInterval(async () => {
+    const verifyActiveSession = async () => {
       const currentVersion = sessionStorage.getItem('areen_session_version');
-      if (currentVersion) {
-        const isValid = await checkSessionValidity(currentVersion);
-        if (!isValid) {
-          setIsAuthenticated(false);
-          sessionStorage.removeItem('areen_session_auth');
-          sessionStorage.removeItem('areen_session_version');
-          setKickoutAlert(
-            '⚠️ تم تغيير كلمة المرور الموحدة للعرين الذهبي. تم طرد جلستك من هذا الجهاز، يرجى إدخال كلمة المرور الجديدة للمتابعة.'
-          );
-        }
+      if (!currentVersion) {
+        handleForcedKickout();
+        return;
       }
-    }, 3000);
+      const isValid = await checkSessionValidity(currentVersion);
+      if (!isValid) {
+        handleForcedKickout();
+      }
+    };
 
-    return () => clearInterval(checkInterval);
+    // 1. Initial check
+    verifyActiveSession();
+
+    // 2. High-frequency background interval (every 2 seconds)
+    const checkInterval = setInterval(verifyActiveSession, 2000);
+
+    // 3. Tab Visibility & Window Focus (detects when background/open tabs wake up or get interacted with)
+    const onVisibilityOrFocus = () => {
+      if (document.visibilityState === 'visible' || document.hasFocus()) {
+        verifyActiveSession();
+      }
+    };
+
+    document.addEventListener('visibilitychange', onVisibilityOrFocus);
+    window.addEventListener('focus', onVisibilityOrFocus);
+    window.addEventListener('pageshow', onVisibilityOrFocus);
+
+    // 4. Cross-tab storage synchronization
+    const onStorageChange = (e: StorageEvent) => {
+      if (e.key === 'areen_auth_epoch' || e.key === 'areen_auth_hash') {
+        verifyActiveSession();
+      }
+    };
+    window.addEventListener('storage', onStorageChange);
+
+    return () => {
+      clearInterval(checkInterval);
+      document.removeEventListener('visibilitychange', onVisibilityOrFocus);
+      window.removeEventListener('focus', onVisibilityOrFocus);
+      window.removeEventListener('pageshow', onVisibilityOrFocus);
+      window.removeEventListener('storage', onStorageChange);
+    };
   }, [isAuthenticated]);
 
   const toggleSound = () => {
@@ -142,7 +182,13 @@ export default function App() {
   };
 
   // Import range signals to live tracker
-  const handleImportRangeSignals = (importedSignals: SignalItem[]) => {
+  const handleImportRangeSignals = async (importedSignals: SignalItem[]) => {
+    const currentVersion = sessionStorage.getItem('areen_session_version');
+    const isValid = await checkSessionValidity(currentVersion);
+    if (!isValid) {
+      handleForcedKickout();
+      return;
+    }
     setSignals(importedSignals);
     setActiveTab('live');
   };
@@ -159,7 +205,15 @@ export default function App() {
   };
 
   // Generate schedule
-  const handleGenerate = () => {
+  const handleGenerate = async () => {
+    // Zero-trust verification: Check session with server before generating
+    const currentVersion = sessionStorage.getItem('areen_session_version');
+    const isValid = await checkSessionValidity(currentVersion);
+    if (!isValid) {
+      handleForcedKickout();
+      return;
+    }
+
     if (config.selectedPairs.length === 0) {
       alert('يرجى اختيار زوج واحد على الأقل من أزواج العرين الذهبي');
       return;

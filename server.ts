@@ -123,6 +123,10 @@ app.post('/api/auth/login', (req: Request, res: Response) => {
 
 // 2. Session verification heartbeat - checks if password was changed elsewhere
 app.get('/api/auth/session-check', (req: Request, res: Response) => {
+  res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
+  res.setHeader('Pragma', 'no-cache');
+  res.setHeader('Expires', '0');
+
   const clientVersion = req.query.version;
   const vault = getVault();
 

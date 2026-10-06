@@ -196,14 +196,20 @@ export async function checkSessionValidity(currentVersion: string | null): Promi
   if (!currentVersion) return false;
 
   try {
-    const res = await fetch(`/api/auth/session-check?version=${encodeURIComponent(currentVersion)}`, {
+    const res = await fetch(`/api/auth/session-check?version=${encodeURIComponent(currentVersion)}&_t=${Date.now()}`, {
       method: 'GET',
+      cache: 'no-store',
+      headers: {
+        'Cache-Control': 'no-cache, no-store, must-revalidate',
+        'Pragma': 'no-cache',
+      },
     });
+
     if (res.ok) {
       const data = await res.json();
       return data.valid === true;
     }
-    return true;
+    return false;
   } catch {
     // Check against local storage epoch if offline
     const localEpoch = localStorage.getItem('areen_auth_epoch');
