@@ -9,6 +9,9 @@ import { SignalsTable } from './components/SignalsTable';
 import { RiskCalculatorView } from './components/RiskCalculatorView';
 import { TelegramExportModal } from './components/TelegramExportModal';
 import { ChangePinModal } from './components/ChangePinModal';
+import { AdminLoginModal } from './components/admin/AdminLoginModal';
+import { AdminDashboard } from './components/admin/AdminDashboard';
+import { useVisitorTracker } from './hooks/useVisitorTracker';
 import { DEFAULT_PAIRS } from './constants/pairs';
 import { GeneratorConfig, SignalItem, SignalResult } from './types';
 import { playCountdownBeep, playEntryFanfare } from './utils/audio';
@@ -54,6 +57,38 @@ export default function App() {
   const [isExportModalOpen, setIsExportModalOpen] = useState<boolean>(false);
   const [isPinModalOpen, setIsPinModalOpen] = useState<boolean>(false);
   const [copiedId, setCopiedId] = useState<string | null>(null);
+
+  // Admin Portal State
+  const [isAdminLoginOpen, setIsAdminLoginOpen] = useState<boolean>(false);
+  const [isAdminDashboardOpen, setIsAdminDashboardOpen] = useState<boolean>(false);
+  const [adminToken, setAdminToken] = useState<string | null>(() => {
+    return sessionStorage.getItem('areen_admin_token');
+  });
+
+  // Real-time visitor tracking & heartbeat
+  useVisitorTracker(`/${activeTab}`);
+
+  const handleOpenAdminEntrance = () => {
+    const existingToken = sessionStorage.getItem('areen_admin_token');
+    if (existingToken) {
+      setAdminToken(existingToken);
+      setIsAdminDashboardOpen(true);
+    } else {
+      setIsAdminLoginOpen(true);
+    }
+  };
+
+  const handleAdminLoginSuccess = (token: string) => {
+    setAdminToken(token);
+    setIsAdminLoginOpen(false);
+    setIsAdminDashboardOpen(true);
+  };
+
+  const handleAdminLogout = () => {
+    sessionStorage.removeItem('areen_admin_token');
+    setAdminToken(null);
+    setIsAdminDashboardOpen(false);
+  };
 
   const lastBeepSecond = useRef<number>(-1);
   const lastActivityTime = useRef<number>(Date.now());
@@ -340,7 +375,26 @@ export default function App() {
 
   // Render Login if not authenticated
   if (!isAuthenticated) {
-    return <LoginView onSuccess={handleLoginSuccess} kickoutMessage={kickoutAlert} />;
+    return (
+      <>
+        <LoginView
+          onSuccess={handleLoginSuccess}
+          kickoutMessage={kickoutAlert}
+          onSecretAdminTrigger={handleOpenAdminEntrance}
+        />
+        <AdminLoginModal
+          isOpen={isAdminLoginOpen}
+          onClose={() => setIsAdminLoginOpen(false)}
+          onLoginSuccess={handleAdminLoginSuccess}
+        />
+        <AdminDashboard
+          isOpen={isAdminDashboardOpen}
+          onClose={() => setIsAdminDashboardOpen(false)}
+          token={adminToken || ''}
+          onLogout={handleAdminLogout}
+        />
+      </>
+    );
   }
 
   const currentSignal = currentSignalIndex >= 0 ? signals[currentSignalIndex] : null;
@@ -369,6 +423,7 @@ export default function App() {
           onToggleSound={toggleSound}
           onLockSession={handleLockSession}
           onChangePin={() => setIsPinModalOpen(true)}
+          onSecretAdminTrigger={handleOpenAdminEntrance}
         />
 
         {/* Content Container - Tailored for Phone Screen */}
@@ -611,6 +666,20 @@ export default function App() {
         <ChangePinModal
           isOpen={isPinModalOpen}
           onClose={() => setIsPinModalOpen(false)}
+        />
+
+        {/* Secret Admin Gateway Modals */}
+        <AdminLoginModal
+          isOpen={isAdminLoginOpen}
+          onClose={() => setIsAdminLoginOpen(false)}
+          onLoginSuccess={handleAdminLoginSuccess}
+        />
+
+        <AdminDashboard
+          isOpen={isAdminDashboardOpen}
+          onClose={() => setIsAdminDashboardOpen(false)}
+          token={adminToken || ''}
+          onLogout={handleAdminLogout}
         />
       </div>
     </div>

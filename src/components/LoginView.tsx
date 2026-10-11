@@ -2,16 +2,22 @@ import React, { useState, useEffect } from 'react';
 import { Eye, EyeOff, Lock, Sparkles, KeyRound, AlertCircle } from 'lucide-react';
 import { verifyMasterPassword } from '../utils/crypto';
 import emblemImage from '../assets/images/areen_golden_emblem_1791233936752.jpg';
+import { useSecretAdminTrigger } from '../hooks/useSecretAdminTrigger';
 
 interface LoginViewProps {
   onSuccess: () => void;
   kickoutMessage?: string | null;
+  onSecretAdminTrigger?: () => void;
 }
 
 const MAX_ATTEMPTS = 5;
 const LOCK_STEPS = [15, 30, 60, 120, 300];
 
-export const LoginView: React.FC<LoginViewProps> = ({ onSuccess, kickoutMessage }) => {
+export const LoginView: React.FC<LoginViewProps> = ({
+  onSuccess,
+  kickoutMessage,
+  onSecretAdminTrigger,
+}) => {
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState('');
@@ -19,6 +25,14 @@ export const LoginView: React.FC<LoginViewProps> = ({ onSuccess, kickoutMessage 
   const [failedAttempts, setFailedAttempts] = useState(0);
   const [lockedUntil, setLockedUntil] = useState(0);
   const [secondsRemaining, setSecondsRemaining] = useState(0);
+
+  const { handleTap, pulseActive } = useSecretAdminTrigger({
+    requiredTaps: 5,
+    timeWindowMs: 2500,
+    onTrigger: () => {
+      onSecretAdminTrigger?.();
+    },
+  });
 
   useEffect(() => {
     const timer = setInterval(() => {
@@ -77,14 +91,25 @@ export const LoginView: React.FC<LoginViewProps> = ({ onSuccess, kickoutMessage 
         <div className="absolute top-0 right-1/2 translate-x-1/2 w-48 h-2 bg-gradient-to-r from-transparent via-[#ffd700] to-transparent opacity-75 blur-xs" />
         <div className="absolute -top-24 left-1/2 -translate-x-1/2 w-64 h-64 bg-[#d4af37]/10 rounded-full blur-3xl pointer-events-none" />
 
-        {/* Brand Crest */}
+        {/* Brand Crest (Secret 5-Tap Gateway for Admin Entrance) */}
         <div className="flex flex-col items-center text-center mb-6 relative">
-          <div className="relative mb-3 group">
-            <div className="w-24 h-24 rounded-2xl overflow-hidden border-2 border-[#d4af37] shadow-[0_0_25px_rgba(212,175,55,0.3)] bg-gradient-to-br from-[#2a2010] to-[#140e06] p-1">
+          <div
+            className="relative mb-3 group cursor-pointer select-none"
+            onClick={handleTap}
+            onTouchEnd={handleTap}
+            title="العرين الذهبي"
+          >
+            <div
+              className={`w-24 h-24 rounded-2xl overflow-hidden border-2 bg-gradient-to-br from-[#2a2010] to-[#140e06] p-1 transition-all duration-300 ${
+                pulseActive
+                  ? 'scale-105 border-[#ffd700] shadow-[0_0_45px_rgba(255,215,0,0.85)] ring-2 ring-[#ffd700]'
+                  : 'border-[#d4af37] shadow-[0_0_25px_rgba(212,175,55,0.3)]'
+              }`}
+            >
               <img
                 src={emblemImage}
                 alt="شعار العرين الذهبي"
-                className="w-full h-full object-cover rounded-xl"
+                className="w-full h-full object-cover rounded-xl pointer-events-none"
               />
             </div>
             <div className="absolute -bottom-2 -left-2 bg-[#d4af37] text-[#080705] p-1.5 rounded-full shadow-md">
@@ -118,7 +143,7 @@ export const LoginView: React.FC<LoginViewProps> = ({ onSuccess, kickoutMessage 
         >
           <div>
             <label className="block text-xs font-semibold text-[#cfb780] mb-2 text-right">
-              كلمة المرور المشفرة
+              كلمة المرور أو كود التفعيل
             </label>
             <div className="relative">
               <input
@@ -129,7 +154,7 @@ export const LoginView: React.FC<LoginViewProps> = ({ onSuccess, kickoutMessage 
                   setError('');
                 }}
                 disabled={secondsRemaining > 0 || loading}
-                placeholder="أدخل كلمة المرور السرية..."
+                placeholder="أدخل كلمة المرور أو كود الترخيص..."
                 className="w-full py-3.5 px-4 pr-11 pl-11 rounded-xl bg-[#090704] border border-[#d4af37]/30 text-white placeholder-[#786b51] focus:outline-none focus:border-[#ffd700] focus:ring-1 focus:ring-[#ffd700] text-center font-mono tracking-widest transition-all"
                 autoFocus
                 required

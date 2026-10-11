@@ -1,12 +1,14 @@
 import React, { useEffect, useState } from 'react';
 import { Volume2, VolumeX, Lock, Clock, KeyRound } from 'lucide-react';
 import emblemImage from '../assets/images/areen_golden_emblem_1791233936752.jpg';
+import { useSecretAdminTrigger } from '../hooks/useSecretAdminTrigger';
 
 interface HeaderProps {
   soundEnabled: boolean;
   onToggleSound: () => void;
   onLockSession: () => void;
   onChangePin: () => void;
+  onSecretAdminTrigger?: () => void;
 }
 
 export const Header: React.FC<HeaderProps> = ({
@@ -14,8 +16,17 @@ export const Header: React.FC<HeaderProps> = ({
   onToggleSound,
   onLockSession,
   onChangePin,
+  onSecretAdminTrigger,
 }) => {
   const [currentTime, setCurrentTime] = useState('');
+
+  const { handleTap, pulseActive } = useSecretAdminTrigger({
+    requiredTaps: 5,
+    timeWindowMs: 2500,
+    onTrigger: () => {
+      onSecretAdminTrigger?.();
+    },
+  });
 
   useEffect(() => {
     const updateTime = () => {
@@ -31,13 +42,24 @@ export const Header: React.FC<HeaderProps> = ({
   return (
     <header className="sticky top-0 z-40 bg-[#0c0905]/95 backdrop-blur-md border-b border-[#d4af37]/20 px-3.5 py-2.5">
       <div className="flex items-center justify-between gap-2">
-        {/* Brand Lockup */}
-        <div className="flex items-center gap-2.5">
-          <div className="w-8 h-8 rounded-lg overflow-hidden border border-[#d4af37]/60 shadow-[0_0_12px_rgba(212,175,55,0.25)] bg-[#1a140a] p-0.5 shrink-0">
+        {/* Brand Lockup (Secret 5-Tap Gateway for Admin Entrance) */}
+        <div
+          onClick={handleTap}
+          onTouchEnd={handleTap}
+          title="العرين الذهبي"
+          className="flex items-center gap-2.5 cursor-pointer select-none group"
+        >
+          <div
+            className={`w-8 h-8 rounded-lg overflow-hidden border bg-[#1a140a] p-0.5 shrink-0 transition-all duration-300 ${
+              pulseActive
+                ? 'scale-110 border-[#ffd700] shadow-[0_0_20px_rgba(255,215,0,0.9)] ring-2 ring-[#ffd700]'
+                : 'border-[#d4af37]/60 shadow-[0_0_12px_rgba(212,175,55,0.25)]'
+            }`}
+          >
             <img
               src={emblemImage}
               alt="شعار العرين الذهبي"
-              className="w-full h-full object-cover rounded-md"
+              className="w-full h-full object-cover rounded-md pointer-events-none"
             />
           </div>
           <div>

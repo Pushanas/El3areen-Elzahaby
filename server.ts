@@ -1,8 +1,10 @@
-import express, { Request, Response } from 'express';
+import express, { type Request, type Response } from 'express';
 import { createServer as createViteServer } from 'vite';
 import fs from 'fs';
 import path from 'path';
 import crypto from 'crypto';
+import { dbEngine, type DurationType, type StartsOnType } from './src/server/db';
+import { adminService } from './src/server/adminService';
 
 const app = express();
 app.use(express.json());
@@ -60,22 +62,52 @@ function verifyPasswordAgainstVault(password: string, vault: VaultData): boolean
   }
 }
 
-// Rate limiting memory
+// Rate limiting memory for standard login
 const failedAttemptsMap = new Map<string, { count: number; lockedUntil: number }>();
 
 function getClientIp(req: Request): string {
+  const cfIp = req.headers['cf-connecting-ip'];
+  if (typeof cfIp === 'string' && cfIp.trim()) {
+    return cfIp.trim();
+  }
+  const realIp = req.headers['x-real-ip'];
+  if (typeof realIp === 'string' && realIp.trim()) {
+    return realIp.trim();
+  }
   const forwarded = req.headers['x-forwarded-for'];
   if (typeof forwarded === 'string') {
-    return forwarded.split(',')[0].trim();
+    const first = forwarded.split(',')[0].trim();
+    if (first) return first;
   }
-  return req.socket.remoteAddress || 'unknown';
+  const raw = req.socket.remoteAddress || '127.0.0.1';
+  return raw.startsWith('::ffff:') ? raw.slice(7) : raw;
 }
 
-// API Routes
-// 1. Login endpoint
+// Middleware: Admin Authentication Guard
+function requireAdmin(req: Request, res: Response, next: () => void) {
+  const authHeader = req.headers.authorization;
+  const token = authHeader?.startsWith('Bearer ')
+    ? authHeader.slice(7).trim()
+    : (req.headers['x-admin-token'] as string) || (req.query.admin_token as string);
+
+  if (!token || !adminService.verifySessionToken(token)) {
+    return res.status(401).json({
+      success: false,
+      error: 'جلسة الإدارة غير صالحة أو انتهت مدتها. يرجى تسجيل الدخول مجدداً.',
+    });
+  }
+  next();
+}
+
+// -------------------------------------------------------------
+// PUBLIC & USER ENDPOINTS
+// -------------------------------------------------------------
+
+// 1. Login endpoint (Supports BOTH Master PIN and License Code)
 app.post('/api/auth/login', (req: Request, res: Response) => {
-  const { password } = req.body;
+  const { password, visitorId } = req.body;
   const ip = getClientIp(req);
+  const userAgent = (req.headers['user-agent'] || 'Browser') as string;
   const now = Date.now();
 
   const ipRecord = failedAttemptsMap.get(ip) || { count: 0, lockedUntil: 0 };
@@ -89,46 +121,107 @@ app.post('/api/auth/login', (req: Request, res: Response) => {
   }
 
   if (!password || typeof password !== 'string') {
-    return res.status(400).json({ success: false, error: 'يرجى إدخال كلمة المرور' });
+    return res.status(400).json({ success: false, error: 'يرجى إدخال كلمة المرور أو كود التفعيل' });
   }
 
-  const cleanPass = password.trim();
-  const vault = getVault();
-  const isValid = verifyPasswordAgainstVault(cleanPass, vault);
+  const cleanInput = password.trim();
 
-  if (isValid) {
+  // A. Check Master Vault Password first
+  const vault = getVault();
+  const isValidVault = verifyPasswordAgainstVault(cleanInput, vault);
+
+  if (isValidVault) {
     failedAttemptsMap.delete(ip);
     return res.json({
       success: true,
+      authType: 'master_vault',
       sessionVersion: vault.sessionVersion,
     });
-  } else {
-    ipRecord.count += 1;
-    if (ipRecord.count >= 5) {
-      const lockPenaltySecs = Math.min(300, 15 * Math.pow(2, ipRecord.count - 5));
-      ipRecord.lockedUntil = now + lockPenaltySecs * 1000;
-    }
-    failedAttemptsMap.set(ip, ipRecord);
-    const attemptsLeft = Math.max(0, 5 - ipRecord.count);
+  }
 
-    return res.status(401).json({
-      success: false,
-      error: attemptsLeft === 0
-        ? 'تم قفل المحاولات مؤقتاً لحماية العرين الذهبي.'
-        : `كلمة المرور غير صحيحة. متبقي ${attemptsLeft} محاولات.`,
-      attemptsLeft,
+  // B. Check License / Activation Code (e.g. AREEN-XXXX-XXXX-XXXX or custom code)
+  const cleanVisitorId = (visitorId || req.headers['x-visitor-id'] || 'anon_visitor') as string;
+  const codeResult = adminService.activateOrVerifyCode(cleanInput, cleanVisitorId, ip, userAgent);
+
+  if (codeResult.success) {
+    failedAttemptsMap.delete(ip);
+    return res.json({
+      success: true,
+      authType: 'license_code',
+      sessionVersion: `license_${codeResult.codeMasked}_${codeResult.expiresAt || 'lifetime'}`,
+      license: codeResult,
     });
   }
+
+  // C. Both failed -> Record failed attempt
+  ipRecord.count += 1;
+  if (ipRecord.count >= 5) {
+    const lockPenaltySecs = Math.min(300, 15 * Math.pow(2, ipRecord.count - 5));
+    ipRecord.lockedUntil = now + lockPenaltySecs * 1000;
+  }
+  failedAttemptsMap.set(ip, ipRecord);
+  const attemptsLeft = Math.max(0, 5 - ipRecord.count);
+
+  return res.status(401).json({
+    success: false,
+    error:
+      attemptsLeft === 0
+        ? 'تم قفل المحاولات مؤقتاً لحماية العرين الذهبي.'
+        : codeResult.error || `كلمة المرور أو كود الترخيص غير صحيح. متبقي ${attemptsLeft} محاولات.`,
+    attemptsLeft,
+  });
 });
 
-// 2. Session verification heartbeat - checks if password was changed elsewhere
+// 2. Direct License Code Activation endpoint
+app.post('/api/license/activate', (req: Request, res: Response) => {
+  const { code, visitorId } = req.body;
+  const ip = getClientIp(req);
+  const userAgent = (req.headers['user-agent'] || 'Browser') as string;
+
+  if (!code || typeof code !== 'string') {
+    return res.status(400).json({ success: false, error: 'يرجى إدخال كود الترخيص' });
+  }
+
+  const result = adminService.activateOrVerifyCode(code.trim(), visitorId || 'anon', ip, userAgent);
+  if (!result.success) {
+    return res.status(400).json(result);
+  }
+
+  return res.json({
+    ...result,
+    sessionVersion: `license_${result.codeMasked}_${result.expiresAt || 'lifetime'}`,
+  });
+});
+
+// 3. Visitor Registration & Heartbeat
+app.post('/api/visitor/heartbeat', (req: Request, res: Response) => {
+  const { visitorId, page } = req.body;
+  const ip = getClientIp(req);
+  const userAgent = (req.headers['user-agent'] || 'Browser') as string;
+
+  const result = adminService.registerOrUpdateVisitor({
+    visitorId: visitorId || 'anon',
+    ip,
+    userAgent,
+    page: page || '/',
+  });
+
+  return res.json({ success: true, ...result });
+});
+
+// 4. Session verification heartbeat
 app.get('/api/auth/session-check', (req: Request, res: Response) => {
   res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
   res.setHeader('Pragma', 'no-cache');
   res.setHeader('Expires', '0');
 
-  const clientVersion = req.query.version;
+  const clientVersion = req.query.version as string;
   const vault = getVault();
+
+  // License code sessions
+  if (clientVersion && clientVersion.startsWith('license_')) {
+    return res.json({ valid: true, version: clientVersion, type: 'license' });
+  }
 
   if (!clientVersion || clientVersion !== vault.sessionVersion) {
     return res.json({
@@ -138,10 +231,10 @@ app.get('/api/auth/session-check', (req: Request, res: Response) => {
     });
   }
 
-  return res.json({ valid: true, version: vault.sessionVersion });
+  return res.json({ valid: true, version: vault.sessionVersion, type: 'master' });
 });
 
-// 3. Change Unified Master Password - Kicks out all other devices immediately!
+// 5. Change Unified Master Password
 app.post('/api/auth/change-password', (req: Request, res: Response) => {
   const { currentPassword, newPassword } = req.body;
 
@@ -171,8 +264,6 @@ app.post('/api/auth/change-password', (req: Request, res: Response) => {
   // Generate new cryptographic salt and PBKDF2 hash
   const newSalt = crypto.randomBytes(16);
   const newHash = crypto.pbkdf2Sync(cleanNew, newSalt, 210000, 32, 'sha256');
-
-  // Generate fresh session version to instantly invalidate all other sessions
   const newSessionVersion = `v_${Date.now()}_${crypto.randomBytes(4).toString('hex')}`;
 
   const updatedVault: VaultData = {
@@ -192,7 +283,326 @@ app.post('/api/auth/change-password', (req: Request, res: Response) => {
   });
 });
 
-// Mount Vite or static build
+// -------------------------------------------------------------
+// ADMIN PROTECTED APIS
+// -------------------------------------------------------------
+
+// Admin Login
+app.post('/api/admin/login', (req: Request, res: Response) => {
+  const { password } = req.body;
+  const ip = getClientIp(req);
+  const result = adminService.handleAdminLogin(password, ip);
+
+  if (!result.success) {
+    return res.status(401).json(result);
+  }
+
+  return res.json(result);
+});
+
+// Admin Logout
+app.post('/api/admin/logout', (req: Request, res: Response) => {
+  const authHeader = req.headers.authorization;
+  const token = authHeader?.startsWith('Bearer ') ? authHeader.slice(7).trim() : req.body.token;
+  const ip = getClientIp(req);
+  adminService.logoutAdmin(token, ip);
+  return res.json({ success: true });
+});
+
+// Admin Session Status Check
+app.get('/api/admin/check', requireAdmin, (req: Request, res: Response) => {
+  return res.json({ success: true, valid: true });
+});
+
+// Admin Overview Stats
+app.get('/api/admin/overview', requireAdmin, (req: Request, res: Response) => {
+  const stats = adminService.getOverviewStats();
+  return res.json({ success: true, stats });
+});
+
+// Admin Generate Codes Batch
+app.post('/api/admin/codes/generate', requireAdmin, (req: Request, res: Response) => {
+  const { count, durationType, customMinutes, startsOn, maxActivations, batchName, note } = req.body;
+  const ip = getClientIp(req);
+
+  try {
+    const result = adminService.generateCodesBatch({
+      count: Number(count) || 1,
+      durationType: (durationType as DurationType) || '24h',
+      customMinutes: Number(customMinutes),
+      startsOn: (startsOn as StartsOnType) || 'first_activation',
+      maxActivations: Number(maxActivations) || 1,
+      batchName,
+      note,
+      ip,
+    });
+    return res.json({ success: true, ...result });
+  } catch (err: any) {
+    return res.status(500).json({ success: false, error: err?.message || 'فشل توليد الأكواد' });
+  }
+});
+
+// Admin Codes List (Filtered & Paginated)
+app.get('/api/admin/codes', requireAdmin, (req: Request, res: Response) => {
+  const { page = '1', limit = '20', search = '', status = 'all', batchId = '' } = req.query;
+  const p = Math.max(1, parseInt(page as string, 10) || 1);
+  const l = Math.min(100, Math.max(1, parseInt(limit as string, 10) || 20));
+
+  const db = dbEngine.get();
+  let list = db.codes;
+
+  // Search filter
+  const q = (search as string).trim().toLowerCase();
+  if (q) {
+    list = list.filter(
+      (c) =>
+        c.codeMasked.toLowerCase().includes(q) ||
+        c.note.toLowerCase().includes(q) ||
+        c.batchName.toLowerCase().includes(q)
+    );
+  }
+
+  // Status filter
+  if (status && status !== 'all') {
+    list = list.filter((c) => c.status === status);
+  }
+
+  // Batch filter
+  if (batchId) {
+    list = list.filter((c) => c.batchId === batchId);
+  }
+
+  const total = list.length;
+  const totalPages = Math.ceil(total / l);
+  const startIndex = (p - 1) * l;
+  const paginated = list.slice(startIndex, startIndex + l);
+
+  return res.json({
+    success: true,
+    page: p,
+    limit: l,
+    total,
+    totalPages,
+    codes: paginated,
+    batches: db.batches,
+  });
+});
+
+// Admin Code Status Toggle / Revoke
+app.post('/api/admin/codes/:id/status', requireAdmin, (req: Request, res: Response) => {
+  const { id } = req.params;
+  const { status } = req.body;
+  const ip = getClientIp(req);
+
+  if (!['active', 'suspended', 'revoked'].includes(status)) {
+    return res.status(400).json({ success: false, error: 'حالة غير صالحة' });
+  }
+
+  const result = adminService.updateCodeStatus(id, status, ip);
+  return res.json(result);
+});
+
+// Admin Code Reveal (Decrypt for authorized admin)
+app.get('/api/admin/codes/:id/reveal', requireAdmin, (req: Request, res: Response) => {
+  const { id } = req.params;
+  const fullCode = adminService.decryptFullCode(id);
+
+  if (!fullCode) {
+    return res.status(404).json({ success: false, error: 'تعذر استرجاع نص الكود' });
+  }
+
+  return res.json({ success: true, fullCode });
+});
+
+// Admin Export CSV
+app.get('/api/admin/codes/export-csv', requireAdmin, (req: Request, res: Response) => {
+  const db = dbEngine.get();
+  const rows: string[] = [];
+
+  // CSV Header
+  rows.push(
+    ['كود_الترخيص', 'الوصف_والملاحظات', 'اسم_الدفعة', 'تاريخ_الإنشاء', 'تاريخ_أول_تفعيل', 'تاريخ_الانتهاء', 'المدة', 'التفعيلات', 'الحالة'].join(
+      ','
+    )
+  );
+
+  for (const c of db.codes) {
+    const plain = adminService.decryptFullCode(c.id) || c.codeMasked;
+    const safeNote = `"${(c.note || '').replace(/"/g, '""')}"`;
+    const safeBatch = `"${(c.batchName || '').replace(/"/g, '""')}"`;
+    const line = [
+      plain,
+      safeNote,
+      safeBatch,
+      c.createdAt,
+      c.firstActivatedAt || 'لم_يُفعل_بعد',
+      c.expiresAt || 'مفتوح',
+      c.durationType,
+      `${c.activationCount}/${c.maxActivations}`,
+      c.status,
+    ].join(',');
+    rows.push(line);
+  }
+
+  const csvContent = '\uFEFF' + rows.join('\r\n'); // Add UTF-8 BOM for Excel Arabic support
+  res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+  res.setHeader('Content-Disposition', `attachment; filename="areen_licenses_${Date.now()}.csv"`);
+  return res.send(csvContent);
+});
+
+// Admin Active Visitors List
+app.get('/api/admin/visitors/active', requireAdmin, (req: Request, res: Response) => {
+  const db = dbEngine.get();
+  const now = Date.now();
+  const activeCutoff = now - 75000; // within last 75 seconds
+
+  const activeList = db.visitors
+    .filter((v) => new Date(v.lastHeartbeatAt).getTime() >= activeCutoff)
+    .sort((a, b) => new Date(b.lastHeartbeatAt).getTime() - new Date(a.lastHeartbeatAt).getTime());
+
+  return res.json({ success: true, count: activeList.length, visitors: activeList });
+});
+
+// Admin Full Visitors History (Paginated)
+app.get('/api/admin/visitors', requireAdmin, (req: Request, res: Response) => {
+  const { page = '1', limit = '20', search = '', status = 'all' } = req.query;
+  const p = Math.max(1, parseInt(page as string, 10) || 1);
+  const l = Math.min(100, Math.max(1, parseInt(limit as string, 10) || 20));
+
+  const db = dbEngine.get();
+  const now = Date.now();
+  const activeCutoff = now - 75000;
+
+  let list = db.visitors.map((v) => ({
+    ...v,
+    isActive: new Date(v.lastHeartbeatAt).getTime() >= activeCutoff,
+  }));
+
+  // Search filter (by IP or visitorId)
+  const q = (search as string).trim().toLowerCase();
+  if (q) {
+    list = list.filter((v) => v.ip.toLowerCase().includes(q) || v.id.toLowerCase().includes(q));
+  }
+
+  // Status filter
+  if (status === 'active') {
+    list = list.filter((v) => v.isActive);
+  } else if (status === 'inactive') {
+    list = list.filter((v) => !v.isActive);
+  }
+
+  list.sort((a, b) => new Date(b.lastSeenAt).getTime() - new Date(a.lastSeenAt).getTime());
+
+  const total = list.length;
+  const totalPages = Math.ceil(total / l);
+  const startIndex = (p - 1) * l;
+  const paginated = list.slice(startIndex, startIndex + l);
+
+  return res.json({
+    success: true,
+    page: p,
+    limit: l,
+    total,
+    totalPages,
+    visitors: paginated,
+  });
+});
+
+// Admin Prune Old Visitors
+app.post('/api/admin/visitors/prune', requireAdmin, (req: Request, res: Response) => {
+  const { days = 30 } = req.body;
+  const ip = getClientIp(req);
+  const cutoffTime = Date.now() - Number(days) * 24 * 3600 * 1000;
+
+  let prunedCount = 0;
+  dbEngine.update((db) => {
+    const before = db.visitors.length;
+    db.visitors = db.visitors.filter((v) => new Date(v.lastSeenAt).getTime() > cutoffTime);
+    prunedCount = before - db.visitors.length;
+  });
+
+  adminService.logAudit('VISITORS_PRUNED', `تم تنظيف ${prunedCount} سجل زائر أقدم من ${days} يوم`, ip);
+
+  return res.json({ success: true, prunedCount });
+});
+
+// Admin Audit Logs List
+app.get('/api/admin/audit-logs', requireAdmin, (req: Request, res: Response) => {
+  const db = dbEngine.get();
+  return res.json({ success: true, logs: db.auditLogs.slice(0, 100) });
+});
+
+// Admin Settings Get
+app.get('/api/admin/settings', requireAdmin, (req: Request, res: Response) => {
+  const db = dbEngine.get();
+  return res.json({
+    success: true,
+    settings: db.settings,
+    totalCodes: db.codes.length,
+    totalVisitors: db.visitors.length,
+    storageEngine: db.settings.storageEngine,
+  });
+});
+
+// Admin Settings Update
+app.post('/api/admin/settings', requireAdmin, (req: Request, res: Response) => {
+  const { visitorRetentionDays, adminSessionHours, adminTitle } = req.body;
+  const ip = getClientIp(req);
+
+  dbEngine.update((db) => {
+    if (visitorRetentionDays) db.settings.visitorRetentionDays = Math.max(1, Number(visitorRetentionDays));
+    if (adminSessionHours) db.settings.adminSessionHours = Math.max(1, Number(adminSessionHours));
+    if (adminTitle) db.settings.adminTitle = String(adminTitle).trim().slice(0, 50);
+  });
+
+  adminService.logAudit('SETTINGS_UPDATED', 'تحديث إعدادات وسياسات نظام العرين الذهبي', ip);
+
+  return res.json({ success: true, settings: dbEngine.get().settings });
+});
+
+// Admin Change Password
+app.post('/api/admin/change-password', requireAdmin, (req: Request, res: Response) => {
+  const { currentPassword, newPassword } = req.body;
+  const ip = getClientIp(req);
+
+  const result = adminService.changeAdminPassword(currentPassword, newPassword, ip);
+  if (!result.success) {
+    return res.status(400).json(result);
+  }
+
+  return res.json(result);
+});
+
+// Admin Export Database JSON Backup (Vercel Persistence Safe)
+app.get('/api/admin/backup', requireAdmin, (req: Request, res: Response) => {
+  const backup = dbEngine.exportBackup();
+  res.setHeader('Content-Type', 'application/json');
+  res.setHeader('Content-Disposition', `attachment; filename="areen_golden_backup_${Date.now()}.json"`);
+  return res.send(JSON.stringify(backup, null, 2));
+});
+
+// Admin Restore Database JSON Backup
+app.post('/api/admin/restore', requireAdmin, (req: Request, res: Response) => {
+  const { backupData } = req.body;
+  const ip = getClientIp(req);
+
+  if (!backupData) {
+    return res.status(400).json({ success: false, error: 'بيانات النسخة الاحتياطية مفقودة' });
+  }
+
+  const success = dbEngine.restoreBackup(backupData);
+  if (!success) {
+    return res.status(400).json({ success: false, error: 'ملف النسخة الاحتياطية غير صالح أو تالف' });
+  }
+
+  adminService.logAudit('DATABASE_RESTORED', 'تم استعادة قاعدة بيانات العرين الذهبي من نسخة احتياطية', ip);
+
+  return res.json({ success: true, message: 'تم استعادة قاعدة البيانات بنجاح' });
+});
+
+// -------------------------------------------------------------
+// VITE SPA SERVER MOUNT
+// -------------------------------------------------------------
 async function startServer() {
   const isProd = process.env.NODE_ENV === 'production';
 
@@ -209,8 +619,8 @@ async function startServer() {
     });
   }
 
-  const port = process.env.PORT || 3000;
-  app.listen(Number(port), '0.0.0.0', () => {
+  const port = process.env.PORT && process.env.PORT !== '8080' ? Number(process.env.PORT) : 3000;
+  app.listen(port, '0.0.0.0', () => {
     console.log(`Al-Areen Golden Den Server running on port ${port}`);
   });
 }
