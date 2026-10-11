@@ -110,29 +110,31 @@ export interface AppDatabase {
   settings: SystemSettings;
 }
 
-// Master encryption key for encrypted code storage (generated or from env)
-const SERVER_CIPHER_KEY = crypto
-  .createHash('sha256')
-  .update(process.env.CIPHER_SECRET || 'AREEN_GOLDEN_DEN_MASTER_CIPHER_SECRET_2026_KEY')
-  .digest();
+// Master encryption keys (supports both configured env and default fallback)
+const DEFAULT_CIPHER_SECRET = 'AREEN_GOLDEN_DEN_MASTER_CIPHER_SECRET_2026_KEY';
+const DEFAULT_CIPHER_KEY = crypto.createHash('sha256').update(DEFAULT_CIPHER_SECRET).digest();
+
+const ACTIVE_CIPHER_KEY = process.env.CIPHER_SECRET
+  ? crypto.createHash('sha256').update(process.env.CIPHER_SECRET).digest()
+  : DEFAULT_CIPHER_KEY;
 
 export function encryptString(plaintext: string): string {
   const iv = crypto.randomBytes(12);
-  const cipher = crypto.createCipheriv('aes-256-gcm', SERVER_CIPHER_KEY, iv);
+  const cipher = crypto.createCipheriv('aes-256-gcm', ACTIVE_CIPHER_KEY, iv);
   let encrypted = cipher.update(plaintext, 'utf8', 'hex');
   encrypted += cipher.final('hex');
   const tag = cipher.getAuthTag();
   return `${iv.toString('hex')}:${tag.toString('hex')}:${encrypted}`;
 }
 
-export function decryptString(cipherText: string): string | null {
+function decryptWithKey(cipherText: string, key: Buffer): string | null {
   try {
     const parts = cipherText.split(':');
     if (parts.length !== 3) return null;
     const iv = Buffer.from(parts[0], 'hex');
     const tag = Buffer.from(parts[1], 'hex');
     const encrypted = parts[2];
-    const decipher = crypto.createDecipheriv('aes-256-gcm', SERVER_CIPHER_KEY, iv);
+    const decipher = crypto.createDecipheriv('aes-256-gcm', key, iv);
     decipher.setAuthTag(tag);
     let decrypted = decipher.update(encrypted, 'hex', 'utf8');
     decrypted += decipher.final('utf8');
@@ -142,17 +144,68 @@ export function decryptString(cipherText: string): string | null {
   }
 }
 
-// Hash code for secure non-reversible lookup
-export function hashCode(code: string): string {
-  const normalized = code.trim().toUpperCase().replace(/\s+/g, '');
-  return crypto.createHmac('sha256', SERVER_CIPHER_KEY).update(normalized).digest('hex');
+export function decryptString(cipherText: string): string | null {
+  // Try active key first, then fallback to default key
+  return decryptWithKey(cipherText, ACTIVE_CIPHER_KEY) || decryptWithKey(cipherText, DEFAULT_CIPHER_KEY);
 }
 
-// Default initial admin password: AreenAdmin#2026!Master
+// Hash code for secure lookup (produces primary lookup hash)
+export function hashCode(code: string): string {
+  const normalized = code.trim().toUpperCase().replace(/\s+/g, '');
+  return crypto.createHmac('sha256', ACTIVE_CIPHER_KEY).update(normalized).digest('hex');
+}
+
+// Find matching license code regardless of key migration or hashing differences
+export function findMatchingCodeInList(codes: LicenseCode[], rawInput: string): LicenseCode | undefined {
+  if (!rawInput || typeof rawInput !== 'string') return undefined;
+  const normalized = rawInput.trim().toUpperCase().replace(/\s+/g, '');
+
+  // 1. Direct active hash check
+  const activeHash = hashCode(normalized);
+  let found = codes.find((c) => c.codeHash === activeHash);
+  if (found) return found;
+
+  // 2. Default key HMAC check
+  const fallbackHash = crypto.createHmac('sha256', DEFAULT_CIPHER_KEY).update(normalized).digest('hex');
+  found = codes.find((c) => c.codeHash === fallbackHash);
+  if (found) return found;
+
+  // 3. Plain SHA-256 check
+  const plainHash = crypto.createHash('sha256').update(normalized).digest('hex');
+  found = codes.find((c) => c.codeHash === plainHash);
+  if (found) return found;
+
+  // 4. Decrypt and compare plaintext code
+  for (const c of codes) {
+    if (c.codeCipher) {
+      const dec = decryptString(c.codeCipher);
+      if (dec && dec.trim().toUpperCase().replace(/\s+/g, '') === normalized) {
+        return c;
+      }
+    }
+  }
+
+  // 5. Match by suffix if standard AREEN-XXXX-XXXX-XXXX format
+  const parts = normalized.split('-');
+  if (parts.length >= 4) {
+    const suffix = parts[3];
+    const candidate = codes.find((c) => c.codeMasked.endsWith(suffix));
+    if (candidate && candidate.codeCipher) {
+      const dec = decryptString(candidate.codeCipher);
+      if (dec && dec.trim().toUpperCase().replace(/\s+/g, '') === normalized) {
+        return candidate;
+      }
+    }
+  }
+
+  return undefined;
+}
+
+// Default initial admin password: Areen#Admin_9X7K!2026
 function generateInitialAdminAuth(): AdminAuth {
   const salt = crypto.randomBytes(16);
   const iterations = 210000;
-  const initialPassword = process.env.ADMIN_PASSWORD || 'AreenAdmin#2026!Master';
+  const initialPassword = process.env.ADMIN_PASSWORD || 'Areen#Admin_9X7K!2026';
   const hash = crypto.pbkdf2Sync(initialPassword, salt, iterations, 32, 'sha256');
   return {
     saltB64: salt.toString('base64'),
@@ -198,22 +251,36 @@ class DatabaseEngine {
   }
 
   private load(): AppDatabase {
-    try {
-      if (fs.existsSync(DB_FILE)) {
-        const raw = fs.readFileSync(DB_FILE, 'utf-8');
-        this.memoryDb = JSON.parse(raw);
-        if (!this.memoryDb?.admin || !this.memoryDb?.codes) {
-          throw new Error('Corrupt DB structure');
+    const candidatePaths = [
+      DB_FILE,
+      path.resolve(process.cwd(), 'data', 'db.json'),
+      path.resolve('/tmp', 'areen_data', 'db.json'),
+    ];
+
+    for (const filePath of candidatePaths) {
+      if (fs.existsSync(filePath)) {
+        try {
+          const raw = fs.readFileSync(filePath, 'utf-8');
+          const parsed = JSON.parse(raw);
+          if (parsed?.admin && Array.isArray(parsed?.codes) && parsed.codes.length > 0) {
+            this.memoryDb = parsed;
+            // Ensure DB_FILE is populated if we loaded from bundled data
+            if (filePath !== DB_FILE) {
+              this.flushSync();
+              console.log(`[DB] ✅ Initialized DB from ${filePath} with ${parsed.codes.length} codes.`);
+            }
+            return parsed;
+          }
+        } catch (e) {
+          console.warn('[DB] Failed reading candidate DB path:', filePath, e);
         }
-        return this.memoryDb;
       }
-    } catch (e) {
-      console.warn('[DB] Failed reading db.json, generating initial database:', e);
     }
 
-    this.memoryDb = getInitialDatabase();
+    const initial = getInitialDatabase();
+    this.memoryDb = initial;
     this.flushSync();
-    return this.memoryDb;
+    return initial;
   }
 
   public get(): AppDatabase {
