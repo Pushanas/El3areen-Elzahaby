@@ -5,17 +5,12 @@ import path from 'path';
 import crypto from 'crypto';
 import { dbEngine, type DurationType, type StartsOnType } from './src/server/db';
 import { adminService } from './src/server/adminService';
+import { envInfo, getStorageDiagnostics } from './database';
 
 const app = express();
 app.use(express.json());
 
-const DATA_DIR = path.resolve(process.cwd(), 'data');
-const AUTH_FILE = path.resolve(DATA_DIR, 'auth_vault.json');
-
-// Ensure data directory exists
-if (!fs.existsSync(DATA_DIR)) {
-  fs.mkdirSync(DATA_DIR, { recursive: true });
-}
+const AUTH_FILE = envInfo.authVaultFilePath;
 
 interface VaultData {
   saltB64: string;
@@ -598,6 +593,12 @@ app.post('/api/admin/restore', requireAdmin, (req: Request, res: Response) => {
   adminService.logAudit('DATABASE_RESTORED', 'تم استعادة قاعدة بيانات العرين الذهبي من نسخة احتياطية', ip);
 
   return res.json({ success: true, message: 'تم استعادة قاعدة البيانات بنجاح' });
+});
+
+// Admin Storage Diagnostics (Environment & Persistence check)
+app.get('/api/admin/storage-diagnostics', requireAdmin, (req: Request, res: Response) => {
+  const diagnostics = getStorageDiagnostics();
+  return res.json({ success: true, diagnostics });
 });
 
 // -------------------------------------------------------------

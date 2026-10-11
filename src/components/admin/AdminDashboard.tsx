@@ -96,6 +96,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
 
   // Settings State
   const [settings, setSettings] = useState<any>(null);
+  const [storageDiag, setStorageDiag] = useState<any>(null);
   const [currentAdminPass, setCurrentAdminPass] = useState<string>('');
   const [newAdminPass, setNewAdminPass] = useState<string>('');
   const [confirmAdminPass, setConfirmAdminPass] = useState<string>('');
@@ -236,6 +237,11 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
         setSettings(data.settings);
         setRetentionDays(data.settings.visitorRetentionDays || 30);
         setSessionHours(data.settings.adminSessionHours || 24);
+      }
+      const diagRes = await authFetch('/api/admin/storage-diagnostics');
+      const diagData = await diagRes.json();
+      if (diagData.success) {
+        setStorageDiag(diagData.diagnostics);
       }
     } catch {
       // ignore
@@ -1774,6 +1780,36 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                     حفظ السياسات
                   </button>
                 </form>
+
+                {/* Storage & Runtime Diagnostics Card */}
+                {storageDiag && (
+                  <div className="bg-[#100c07] border border-[#d4af37]/35 rounded-2xl p-4 md:p-5 space-y-3">
+                    <div className="flex items-center justify-between">
+                      <h3 className="text-sm font-bold text-[#ffd700] flex items-center gap-2">
+                        <Globe className="w-4 h-4 text-[#ffd700]" />
+                        <span>تشخيص بيئة التشغيل واستمرارية التخزين (database.ts)</span>
+                      </h3>
+                      <span className="px-2 py-0.5 rounded-full text-[10px] font-mono bg-[#22c55e]/20 text-[#4ade80] border border-[#22c55e]/40 font-bold">
+                        {storageDiag.status}
+                      </span>
+                    </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-2.5 text-xs">
+                      <div className="p-2.5 rounded-xl bg-[#140e08] border border-[#d4af37]/15">
+                        <span className="text-[#8e7e60] block text-[10px]">البيئة المكتشفة تلقائياً:</span>
+                        <span className="font-bold text-[#ffd700]">{storageDiag.environment}</span>
+                      </div>
+                      <div className="p-2.5 rounded-xl bg-[#140e08] border border-[#d4af37]/15">
+                        <span className="text-[#8e7e60] block text-[10px]">نمط التخزين الدائم:</span>
+                        <span className="font-mono text-[#4ade80]">{storageDiag.storageMode}</span>
+                      </div>
+                      <div className="p-2.5 rounded-xl bg-[#140e08] border border-[#d4af37]/15 md:col-span-2">
+                        <span className="text-[#8e7e60] block text-[10px]">مسار ملف قاعدة البيانات:</span>
+                        <span className="font-mono text-[11px] text-[#cfb780] break-all">{storageDiag.databaseFile}</span>
+                      </div>
+                    </div>
+                  </div>
+                )}
 
                 {/* Database Backup & Vercel Persistence Restore */}
                 <div className="bg-[#100c07] border border-[#d4af37]/30 rounded-2xl p-4 md:p-5 space-y-3">

@@ -8,6 +8,26 @@
   },
   "codes": [
     {
+      "id": "097bc66c-106d-4e1d-b955-8ec1d1287da8",
+      "codeHash": "f8ba5209eea9004646cd7d70ff9a9f4d232f8a23eb007fcc295666090655fe25",
+      "codeMasked": "AREEN-****-****-7AA4",
+      "codeCipher": "8bfa152151077bb9d7e3bc2f:5b8859b8869780f6febdf1bdf2a4fc35:555e2375036c890435c3eba6664f641e0f1cc5d5",
+      "batchId": "58cfc818-490d-4a9e-b87d-6d816eafeb86",
+      "batchName": "احمد مطر",
+      "note": "",
+      "durationType": "1h",
+      "durationMinutes": 60,
+      "startsOn": "first_activation",
+      "maxActivations": 1,
+      "activationCount": 0,
+      "status": "new",
+      "createdAt": "2026-10-11T15:54:57.806Z",
+      "firstActivatedAt": null,
+      "expiresAt": null,
+      "lastUsedAt": null,
+      "activations": []
+    },
+    {
       "id": "73f49e12-9d68-460c-a294-228820d4f430",
       "codeHash": "94249aa1776597bfc9804e0cb52b11914a082dc71cad578a4ff1bc69b3fb4755",
       "codeMasked": "AREEN-****-****-FR2E",
@@ -334,6 +354,16 @@
   ],
   "batches": [
     {
+      "id": "58cfc818-490d-4a9e-b87d-6d816eafeb86",
+      "name": "احمد مطر",
+      "count": 1,
+      "durationType": "1h",
+      "durationMinutes": 60,
+      "startsOn": "first_activation",
+      "maxActivations": 1,
+      "createdAt": "2026-10-11T15:54:57.806Z"
+    },
+    {
       "id": "c76a7d75-afec-4a78-a5c1-dcda9bbc8c24",
       "name": "باقة التجربة السريعة (ساعة واحدة)",
       "count": 2,
@@ -400,8 +430,8 @@
       "ip": "169.254.169.126",
       "userAgent": "Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/154.0.0.0 Mobile Safari/537.36",
       "firstSeenAt": "2026-10-11T15:49:23.011Z",
-      "lastSeenAt": "2026-10-11T15:51:16.880Z",
-      "lastHeartbeatAt": "2026-10-11T15:51:16.880Z",
+      "lastSeenAt": "2026-10-11T16:02:06.972Z",
+      "lastHeartbeatAt": "2026-10-11T16:02:06.972Z",
       "lastPage": "/live",
       "visitCount": 1
     },
@@ -417,6 +447,45 @@
     }
   ],
   "auditLogs": [
+    {
+      "id": "fecb627a-38d5-40ce-a694-fbcc9697d2ff",
+      "action": "ADMIN_LOGIN_SUCCESS",
+      "details": "تسجيل دخول ناجح إلى لوحة قيادة العرين الذهبي",
+      "ip": "169.254.169.126",
+      "timestamp": "2026-10-11T16:01:25.908Z",
+      "adminId": "master_admin"
+    },
+    {
+      "id": "5f1d685c-a887-408f-9f9a-b2cbb1c040eb",
+      "action": "ADMIN_LOGIN_SUCCESS",
+      "details": "تسجيل دخول ناجح إلى لوحة قيادة العرين الذهبي",
+      "ip": "127.0.0.1",
+      "timestamp": "2026-10-11T15:59:38.519Z",
+      "adminId": "master_admin"
+    },
+    {
+      "id": "b55dae9a-8e36-4442-8904-69fcca0696e2",
+      "action": "CODES_BATCH_CREATED",
+      "details": "تم توليد دفعة أكواد [احمد مطر] بعدد 1 كود (مدة: 1h, تفعيلات: 1)",
+      "ip": "169.254.169.126",
+      "timestamp": "2026-10-11T15:54:57.807Z"
+    },
+    {
+      "id": "7a04efec-0992-48fa-b266-16084a054d30",
+      "action": "ADMIN_LOGIN_SUCCESS",
+      "details": "تسجيل دخول ناجح إلى لوحة قيادة العرين الذهبي",
+      "ip": "169.254.169.126",
+      "timestamp": "2026-10-11T15:54:30.538Z",
+      "adminId": "master_admin"
+    },
+    {
+      "id": "fa51bdd8-8c09-4b46-ba58-736f71b427a8",
+      "action": "ADMIN_LOGIN_SUCCESS",
+      "details": "تسجيل دخول ناجح إلى لوحة قيادة العرين الذهبي",
+      "ip": "169.254.169.126",
+      "timestamp": "2026-10-11T15:53:45.208Z",
+      "adminId": "master_admin"
+    },
     {
       "id": "cfa9f943-e663-4d92-a948-8f2ef7c58078",
       "action": "ADMIN_LOGIN_SUCCESS",

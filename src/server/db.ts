@@ -1,35 +1,10 @@
 import fs from 'fs';
 import path from 'path';
 import crypto from 'crypto';
+import { envInfo, vercelKvAdapter, getStorageDiagnostics } from '../../database';
 
-// Persistence directory resolution (Supports local development, Docker, and Vercel serverless /tmp)
-function resolveDataDir(): string {
-  if (process.env.DATA_DIR) {
-    return path.resolve(process.env.DATA_DIR);
-  }
-  // If running in Vercel serverless environment, local repo directory is read-only
-  if (process.env.VERCEL) {
-    return path.resolve('/tmp', 'areen_data');
-  }
-  return path.resolve(process.cwd(), 'data');
-}
-
-const DATA_DIR = resolveDataDir();
-const DB_FILE = path.resolve(DATA_DIR, 'db.json');
-const AUTH_VAULT_FILE = path.resolve(DATA_DIR, 'auth_vault.json');
-
-// Ensure directory exists
-try {
-  if (!fs.existsSync(DATA_DIR)) {
-    fs.mkdirSync(DATA_DIR, { recursive: true });
-  }
-} catch {
-  // If failed (e.g. read-only file system on Vercel), fallback to /tmp/areen_data
-  const tmpDir = path.resolve('/tmp', 'areen_data');
-  if (!fs.existsSync(tmpDir)) {
-    fs.mkdirSync(tmpDir, { recursive: true });
-  }
-}
+const DB_FILE = envInfo.databaseFilePath;
+const AUTH_VAULT_FILE = envInfo.authVaultFilePath;
 
 export type CodeStatus = 'new' | 'active' | 'expired' | 'revoked' | 'suspended' | 'exhausted';
 export type DurationType =
@@ -263,6 +238,13 @@ class DatabaseEngine {
       } catch (err) {
         console.error('[DB] Failed writing database:', err);
       }
+    }
+
+    // مزامنة سحابية إضافية عبر Vercel KV في حال توفرها
+    if (vercelKvAdapter.isEnabled()) {
+      vercelKvAdapter.set('areen_golden_db', this.memoryDb).catch((kvErr) => {
+        console.warn('[DB] Vercel KV background sync warning:', kvErr);
+      });
     }
   }
 
