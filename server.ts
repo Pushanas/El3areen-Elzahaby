@@ -627,6 +627,23 @@ app.post('/api/admin/restore', requireAdmin, (req: Request, res: Response) => {
   return res.json({ success: true, message: 'تم استعادة قاعدة البيانات بنجاح' });
 });
 
+// Public Safe Health Check Endpoint
+app.get('/api/health', (req: Request, res: Response) => {
+  try {
+    const diag = getStorageDiagnostics();
+    return res.json({
+      success: true,
+      status: 'healthy',
+      service: 'Al-Areen Golden Den',
+      environment: diag.environment,
+      storageMode: diag.storageMode,
+      timestamp: new Date().toISOString(),
+    });
+  } catch (err) {
+    return res.status(500).json({ success: false, status: 'unhealthy', error: 'Storage degradation' });
+  }
+});
+
 // Admin Storage Diagnostics (Environment & Persistence check)
 app.get('/api/admin/storage-diagnostics', requireAdmin, (req: Request, res: Response) => {
   const diagnostics = getStorageDiagnostics();
