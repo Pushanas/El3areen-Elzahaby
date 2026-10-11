@@ -3,9 +3,9 @@ import { createServer as createViteServer } from 'vite';
 import fs from 'fs';
 import path from 'path';
 import crypto from 'crypto';
-import { dbEngine, type DurationType, type StartsOnType } from './src/server/db';
-import { adminService } from './src/server/adminService';
-import { envInfo, getStorageDiagnostics } from './database';
+import { dbEngine, type DurationType, type StartsOnType } from './src/server/db.ts';
+import { adminService } from './src/server/adminService.ts';
+import { envInfo, getStorageDiagnostics } from './database.ts';
 
 const app = express();
 app.use(express.json());
@@ -626,4 +626,10 @@ async function startServer() {
   });
 }
 
-startServer();
+// Only listen when running standalone dev server or container, not in Vercel serverless functions
+if (!process.env.VERCEL) {
+  startServer();
+}
+
+export default app;
+export { app };

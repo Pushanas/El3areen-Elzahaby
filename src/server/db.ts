@@ -1,7 +1,7 @@
 import fs from 'fs';
 import path from 'path';
 import crypto from 'crypto';
-import { envInfo, vercelKvAdapter, getStorageDiagnostics } from '../../database';
+import { envInfo, vercelKvAdapter, getStorageDiagnostics } from '../../database.ts';
 
 const DB_FILE = envInfo.databaseFilePath;
 const AUTH_VAULT_FILE = envInfo.authVaultFilePath;

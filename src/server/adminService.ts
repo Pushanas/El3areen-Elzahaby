@@ -4,13 +4,13 @@ import {
   hashCode,
   encryptString,
   decryptString,
-  LicenseCode,
-  CodeBatch,
-  DurationType,
-  StartsOnType,
-  VisitorRecord,
-  AuditLog,
-} from './db';
+  type LicenseCode,
+  type CodeBatch,
+  type DurationType,
+  type StartsOnType,
+  type VisitorRecord,
+  type AuditLog,
+} from './db.ts';
 
 // Duration in minutes lookup
 export function durationToMinutes(type: DurationType, customMinutes?: number): number {

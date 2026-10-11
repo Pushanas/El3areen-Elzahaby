@@ -8,9 +8,9 @@ import {
   initSqliteDatabase,
   getDatabase,
   getStorageInfo,
-} from './src/utils/database';
+} from './src/utils/database.ts';
 
-export * from './src/utils/database';
+export * from './src/utils/database.ts';
 
 /**
  * بيئة التشغيل ومعلومات استمرارية التخزين (Runtime Environment & Storage Persistence)
