@@ -220,20 +220,35 @@ app.post('/api/license/activate', (req: Request, res: Response) => {
   });
 });
 
-// 3. Visitor Registration & Heartbeat
-app.post('/api/visitor/heartbeat', (req: Request, res: Response) => {
-  const { visitorId, page } = req.body;
+// 3. Visitor Registration & Heartbeat (with Telemetry & Geolocation)
+app.post('/api/visitor/heartbeat', async (req: Request, res: Response) => {
+  const { visitorId, page, device, gpsLocation } = req.body;
   const ip = getClientIp(req);
   const userAgent = (req.headers['user-agent'] || 'Browser') as string;
 
-  const result = adminService.registerOrUpdateVisitor({
-    visitorId: visitorId || 'anon',
-    ip,
-    userAgent,
-    page: page || '/',
-  });
+  try {
+    const result = await adminService.registerOrUpdateVisitor({
+      visitorId: visitorId || 'anon',
+      ip,
+      userAgent,
+      page: page || '/',
+      device,
+      gpsLocation,
+      headers: req.headers as Record<string, string | string[] | undefined>,
+    });
 
-  return res.json({ success: true, ...result });
+    if (result.blocked) {
+      return res.status(403).json({
+        success: false,
+        blocked: true,
+        error: 'تم تقييد وصول هذا الجهاز من قبل إدارة العرين الذهبي.',
+      });
+    }
+
+    return res.json({ success: true, ...result });
+  } catch (err) {
+    return res.json({ success: true, visitorId, isActive: true });
+  }
 });
 
 // 4. Session verification heartbeat
@@ -441,6 +456,33 @@ app.get('/api/admin/codes/:id/reveal', requireAdmin, (req: Request, res: Respons
   return res.json({ success: true, fullCode });
 });
 
+// Admin Extend Code Duration (+24h, +7d, +30d)
+app.post('/api/admin/codes/:id/extend', requireAdmin, (req: Request, res: Response) => {
+  const { id } = req.params;
+  const { additionalMinutes = 1440 } = req.body;
+  const ip = getClientIp(req);
+  const result = adminService.extendCodeDuration(id, Number(additionalMinutes), ip);
+  return res.json(result);
+});
+
+// Admin Reset Code Devices / Phone Lock (Allow switching phones)
+app.post('/api/admin/codes/:id/reset-device', requireAdmin, (req: Request, res: Response) => {
+  const { id } = req.params;
+  const ip = getClientIp(req);
+  const success = adminService.resetCodeDeviceActivations(id, ip);
+  return res.json({ success });
+});
+
+// Admin Test / Simulate Code Validity Tool
+app.post('/api/admin/codes/test', requireAdmin, (req: Request, res: Response) => {
+  const { code } = req.body;
+  if (!code || typeof code !== 'string') {
+    return res.status(400).json({ success: false, error: 'يرجى تقديم الكود لفحصه' });
+  }
+  const result = adminService.testValidateCode(code);
+  return res.json(result);
+});
+
 // Admin Export CSV
 app.get('/api/admin/codes/export-csv', requireAdmin, (req: Request, res: Response) => {
   const db = dbEngine.get();
@@ -533,6 +575,46 @@ app.get('/api/admin/visitors', requireAdmin, (req: Request, res: Response) => {
     totalPages,
     visitors: paginated,
   });
+});
+
+// Admin Visitors Geolocation Map Telemetry Data
+app.get('/api/admin/visitors/map', requireAdmin, (req: Request, res: Response) => {
+  const onlyActive = req.query.active === 'true';
+  const markers = adminService.getVisitorsMapData(onlyActive);
+  return res.json({ success: true, count: markers.length, markers });
+});
+
+// Admin Block / Unblock Visitor Device or IP
+app.post('/api/admin/visitors/:id/block', requireAdmin, (req: Request, res: Response) => {
+  const { id } = req.params;
+  const { note } = req.body;
+  const ip = getClientIp(req);
+  const result = adminService.toggleBlockVisitor(id, ip, note);
+  return res.json(result);
+});
+
+// Admin Update Visitor / Phone Dossier Note
+app.post('/api/admin/visitors/:id/note', requireAdmin, (req: Request, res: Response) => {
+  const { id } = req.params;
+  const { note } = req.body;
+  const success = adminService.setVisitorNote(id, note || '');
+  return res.json({ success });
+});
+
+// Public Emergency / Announcement Broadcast Endpoint (For Trading Bot Header)
+app.get('/api/public/broadcast', (req: Request, res: Response) => {
+  const db = dbEngine.get();
+  return res.json({
+    success: true,
+    broadcast: db.settings?.emergencyBroadcast || null,
+  });
+});
+
+// Admin Update Emergency / Announcement Broadcast
+app.post('/api/admin/broadcast', requireAdmin, (req: Request, res: Response) => {
+  const ip = getClientIp(req);
+  const success = adminService.updateBroadcast(req.body, ip);
+  return res.json({ success, broadcast: req.body });
 });
 
 // Admin Prune Old Visitors

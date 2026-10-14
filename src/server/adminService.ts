@@ -5,13 +5,18 @@ import {
   encryptString,
   decryptString,
   findMatchingCodeInList,
+  ACTIVE_CIPHER_KEY,
   type LicenseCode,
   type CodeBatch,
   type DurationType,
   type StartsOnType,
   type VisitorRecord,
   type AuditLog,
+  type DeviceTelemetry,
+  type GpsLocation,
+  type EmergencyBroadcast,
 } from './db.ts';
+import { resolveIpLocation } from './geoService.ts';
 
 // Duration in minutes lookup
 export function durationToMinutes(type: DurationType, customMinutes?: number): number {
@@ -191,13 +196,19 @@ export const adminService = {
 
     // Login successful
     adminFailedAttempts.delete(ip);
-    const token = crypto.randomBytes(32).toString('hex');
     const hours = dbEngine.get().settings.adminSessionHours || 24;
+    const expiresAt = now + hours * 3600 * 1000;
+    
+    // Generate stateless cryptographic HMAC token (ensures 100% reliability across Vercel serverless lambdas)
+    const payload = `adm:master_admin:${now}:${expiresAt}`;
+    const sig = crypto.createHmac('sha256', ACTIVE_CIPHER_KEY).update(payload).digest('hex');
+    const token = `${Buffer.from(payload).toString('base64url')}.${sig}`;
+
     const session: AdminSession = {
       token,
       adminId: 'master_admin',
       createdAt: now,
-      expiresAt: now + hours * 3600 * 1000,
+      expiresAt,
       ip,
     };
     activeAdminSessions.set(token, session);
@@ -207,21 +218,58 @@ export const adminService = {
     return { success: true, token };
   },
 
-  // Verify Admin Session Token
+  // Verify Admin Session Token (Memory + Stateless HMAC verification for Vercel Serverless)
   verifySessionToken(token: string | undefined): boolean {
-    if (!token) return false;
-    const session = activeAdminSessions.get(token);
-    if (!session) return false;
-    if (Date.now() > session.expiresAt) {
-      activeAdminSessions.delete(token);
-      return false;
+    if (!token || typeof token !== 'string') return false;
+    const cleanToken = token.trim();
+
+    // 1. In-memory check (fast hit on warm instances)
+    const session = activeAdminSessions.get(cleanToken);
+    if (session && Date.now() <= session.expiresAt) {
+      return true;
     }
-    return true;
+
+    // 2. Stateless HMAC validation (works seamlessly across all Vercel serverless containers/lambdas)
+    const dotIndex = cleanToken.indexOf('.');
+    if (dotIndex > 0) {
+      try {
+        const payloadB64 = cleanToken.slice(0, dotIndex);
+        const sig = cleanToken.slice(dotIndex + 1);
+        const payload = Buffer.from(payloadB64, 'base64url').toString('utf8');
+        const parts = payload.split(':');
+        if (parts.length === 4 && parts[0] === 'adm') {
+          const [_, adminId, createdStr, expiresStr] = parts;
+          const expiresAt = parseInt(expiresStr, 10);
+          const createdAt = parseInt(createdStr, 10);
+          if (!isNaN(expiresAt) && Date.now() <= expiresAt) {
+            const expectedSig = crypto.createHmac('sha256', ACTIVE_CIPHER_KEY).update(payload).digest('hex');
+            if (crypto.timingSafeEqual(Buffer.from(sig, 'hex'), Buffer.from(expectedSig, 'hex'))) {
+              // Cache in memory for subsequent quick lookups in this container
+              activeAdminSessions.set(cleanToken, {
+                token: cleanToken,
+                adminId,
+                createdAt: isNaN(createdAt) ? Date.now() : createdAt,
+                expiresAt,
+                ip: 'verified_hmac',
+              });
+              return true;
+            }
+          }
+        }
+      } catch {
+        // Fallback
+      }
+    }
+
+    if (session && Date.now() > session.expiresAt) {
+      activeAdminSessions.delete(cleanToken);
+    }
+    return false;
   },
 
   logoutAdmin(token: string | undefined, ip: string) {
     if (token) {
-      activeAdminSessions.delete(token);
+      activeAdminSessions.delete(token.trim());
       this.logAudit('ADMIN_LOGOUT', 'تسجيل خروج من لوحة الإدارة', ip);
     }
   },
@@ -454,16 +502,24 @@ export const adminService = {
     });
   },
 
-  // 6. Visitor Registration & Heartbeat
-  registerOrUpdateVisitor(params: {
+  // 6. Visitor Registration & Heartbeat (with Phone Telemetry & Geolocation)
+  async registerOrUpdateVisitor(params: {
     visitorId: string;
     ip: string;
     userAgent: string;
     page: string;
-  }): { visitorId: string; isActive: boolean } {
-    const { visitorId, ip, userAgent, page } = params;
+    device?: DeviceTelemetry;
+    gpsLocation?: GpsLocation;
+    headers?: Record<string, string | string[] | undefined>;
+  }): Promise<{ visitorId: string; isActive: boolean; blocked: boolean }> {
+    const { visitorId, ip, userAgent, page, device, gpsLocation, headers } = params;
     const now = new Date();
     const cleanId = visitorId?.trim() || crypto.randomUUID();
+
+    // Resolve IP geolocation
+    const geo = await resolveIpLocation(ip, headers);
+
+    let isBlocked = false;
 
     dbEngine.update((db) => {
       let visitor = db.visitors.find((v) => v.id === cleanId);
@@ -471,12 +527,22 @@ export const adminService = {
         visitor = {
           id: cleanId,
           ip: ip || '127.0.0.1',
-          userAgent: (userAgent || 'Browser').slice(0, 250),
+          userAgent: (userAgent || 'Browser').slice(0, 300),
           firstSeenAt: now.toISOString(),
           lastSeenAt: now.toISOString(),
           lastHeartbeatAt: now.toISOString(),
           lastPage: (page || '/').slice(0, 100),
           visitCount: 1,
+          country: geo.country,
+          countryCode: geo.countryCode,
+          flag: geo.flag,
+          city: geo.city,
+          region: geo.region,
+          isp: geo.isp,
+          ipLocation: geo,
+          device: device || undefined,
+          gpsLocation: gpsLocation || undefined,
+          blocked: false,
         };
         db.visitors.unshift(visitor);
       } else {
@@ -485,10 +551,36 @@ export const adminService = {
           visitor.visitCount = (visitor.visitCount || 1) + 1;
         }
         visitor.ip = ip || visitor.ip;
-        visitor.userAgent = (userAgent || visitor.userAgent).slice(0, 250);
+        visitor.userAgent = (userAgent || visitor.userAgent).slice(0, 300);
         visitor.lastSeenAt = now.toISOString();
         visitor.lastHeartbeatAt = now.toISOString();
         visitor.lastPage = (page || visitor.lastPage).slice(0, 100);
+
+        // Update geo if not already set or changed
+        if (!visitor.country || visitor.country === 'غير معروف' || visitor.ip !== ip) {
+          visitor.country = geo.country;
+          visitor.countryCode = geo.countryCode;
+          visitor.flag = geo.flag;
+          visitor.city = geo.city;
+          visitor.region = geo.region;
+          visitor.isp = geo.isp;
+          visitor.ipLocation = geo;
+        }
+
+        // Update device telemetry if provided
+        if (device) {
+          visitor.device = {
+            ...(visitor.device || {}),
+            ...device,
+          };
+        }
+
+        // Update GPS location if provided
+        if (gpsLocation) {
+          visitor.gpsLocation = gpsLocation;
+        }
+
+        isBlocked = !!visitor.blocked;
       }
 
       // Auto-prune old visitors beyond retention days
@@ -499,7 +591,7 @@ export const adminService = {
       }
     });
 
-    return { visitorId: cleanId, isActive: true };
+    return { visitorId: cleanId, isActive: true, blocked: isBlocked };
   },
 
   // 7. Get Overview Statistics
@@ -529,6 +621,31 @@ export const adminService = {
       (v) => new Date(v.lastHeartbeatAt).getTime() >= activeCutoff
     ).length;
 
+    // Top Countries breakdown
+    const countryCounts: Record<string, { count: number; flag: string; name: string }> = {};
+    const deviceModelCounts: Record<string, number> = {};
+
+    for (const v of db.visitors) {
+      const cName = v.country || 'غير محدد';
+      const flag = v.flag || '🌐';
+      if (!countryCounts[cName]) {
+        countryCounts[cName] = { count: 0, flag, name: cName };
+      }
+      countryCounts[cName].count++;
+
+      const model = v.device?.model || (v.userAgent.includes('iPhone') ? 'Apple iPhone' : 'Web Browser');
+      deviceModelCounts[model] = (deviceModelCounts[model] || 0) + 1;
+    }
+
+    const topCountries = Object.values(countryCounts)
+      .sort((a, b) => b.count - a.count)
+      .slice(0, 5);
+
+    const topDevices = Object.entries(deviceModelCounts)
+      .map(([name, count]) => ({ name, count }))
+      .sort((a, b) => b.count - a.count)
+      .slice(0, 5);
+
     return {
       totalCodes,
       activeCodes,
@@ -540,10 +657,201 @@ export const adminService = {
       activeVisitors,
       totalVisitors: db.visitors.length,
       totalBatches: db.batches.length,
+      topCountries,
+      topDevices,
+      emergencyBroadcast: db.settings.emergencyBroadcast,
     };
   },
 
-  // 8. Decrypt Code (for admin export / reveal)
+  // 8. Visitors Map Telemetry (List for Interactive Map)
+  getVisitorsMapData(onlyActive = false) {
+    const db = dbEngine.get();
+    const now = Date.now();
+    const activeCutoff = now - 75000;
+
+    let list = db.visitors;
+    if (onlyActive) {
+      list = list.filter((v) => new Date(v.lastHeartbeatAt).getTime() >= activeCutoff);
+    }
+
+    return list.map((v) => {
+      const isActive = new Date(v.lastHeartbeatAt).getTime() >= activeCutoff;
+      // GPS coords have higher priority than IP coords
+      const hasGps = !!(v.gpsLocation && typeof v.gpsLocation.latitude === 'number');
+      const lat = hasGps ? v.gpsLocation!.latitude : v.ipLocation?.latitude || 30.0444;
+      const lng = hasGps ? v.gpsLocation!.longitude : v.ipLocation?.longitude || 31.2357;
+
+      return {
+        id: v.id,
+        ip: v.ip,
+        country: v.country || 'مصر',
+        countryCode: v.countryCode || 'EG',
+        flag: v.flag || '🇪🇬',
+        city: v.city || 'القاهرة',
+        region: v.region || '',
+        isp: v.isp || 'Telecom Provider',
+        latitude: lat,
+        longitude: lng,
+        isGps: hasGps,
+        gpsAccuracy: v.gpsLocation?.accuracy,
+        deviceModel: v.device?.model || 'هاتف ذكي',
+        deviceOs: v.device?.os || 'iOS / Android',
+        browser: v.device?.browser || 'Browser',
+        screen: v.device?.screenResolution,
+        battery: v.device?.batteryLevel,
+        isCharging: v.device?.isCharging,
+        lastSeenAt: v.lastSeenAt,
+        lastHeartbeatAt: v.lastHeartbeatAt,
+        lastPage: v.lastPage,
+        isActive,
+        blocked: !!v.blocked,
+        note: v.note || '',
+      };
+    });
+  },
+
+  // 9. Block / Unblock Visitor
+  toggleBlockVisitor(visitorId: string, ip: string, note?: string): { success: boolean; blocked: boolean } {
+    let newBlockedState = false;
+
+    dbEngine.update((db) => {
+      const visitor = db.visitors.find((v) => v.id === visitorId);
+      if (visitor) {
+        visitor.blocked = !visitor.blocked;
+        if (note !== undefined) visitor.note = note;
+        newBlockedState = !!visitor.blocked;
+      }
+    });
+
+    this.logAudit(
+      newBlockedState ? 'VISITOR_BLOCKED' : 'VISITOR_UNBLOCKED',
+      `${newBlockedState ? 'تم حظر' : 'تم فك حظر'} الزائر صاحب المعرف [${visitorId}]`,
+      ip
+    );
+
+    return { success: true, blocked: newBlockedState };
+  },
+
+  // 10. Update Visitor Note
+  setVisitorNote(visitorId: string, note: string): boolean {
+    return dbEngine.updateSync((db) => {
+      const visitor = db.visitors.find((v) => v.id === visitorId);
+      if (visitor) {
+        visitor.note = (note || '').trim().slice(0, 500);
+        return true;
+      }
+      return false;
+    });
+  },
+
+  // 11. Extend Code Expiration Time
+  extendCodeDuration(codeId: string, additionalMinutes: number, ip: string): { success: boolean; newExpiresAt?: string } {
+    const now = Date.now();
+
+    return dbEngine.updateSync((db) => {
+      const code = db.codes.find((c) => c.id === codeId);
+      if (!code) return { success: false };
+
+      const currentExpiry = code.expiresAt ? new Date(code.expiresAt).getTime() : now;
+      const baseTime = currentExpiry > now ? currentExpiry : now;
+      const newExpiry = new Date(baseTime + additionalMinutes * 60 * 1000).toISOString();
+
+      code.expiresAt = newExpiry;
+      code.durationMinutes = (code.durationMinutes || 0) + additionalMinutes;
+      if (code.status === 'expired' || code.status === 'exhausted') {
+        code.status = 'active';
+      }
+
+      this.logAudit(
+        'CODE_EXTENDED',
+        `تم تمديد كود الترخيص [${code.codeMasked}] بمقدار ${Math.round(additionalMinutes / 60)} ساعة`,
+        ip
+      );
+
+      return { success: true, newExpiresAt: newExpiry };
+    });
+  },
+
+  // 12. Reset Device Activations (Allow user to switch phone)
+  resetCodeDeviceActivations(codeId: string, ip: string): boolean {
+    return dbEngine.updateSync((db) => {
+      const code = db.codes.find((c) => c.id === codeId);
+      if (!code) return false;
+
+      code.activations = [];
+      code.activationCount = 0;
+      if (code.status === 'exhausted') {
+        code.status = 'active';
+      }
+
+      this.logAudit(
+        'CODE_DEVICES_RESET',
+        `تم إعادة تعيين قفل الأجهزة لكود الترخيص [${code.codeMasked}]`,
+        ip
+      );
+
+      return true;
+    });
+  },
+
+  // 13. Test / Simulate Code Validity
+  testValidateCode(rawCode: string) {
+    const db = dbEngine.get();
+    const code = findMatchingCodeInList(db.codes, rawCode);
+    if (!code) {
+      return { success: false, found: false, error: 'الكود غير موجود في قاعدة البيانات' };
+    }
+
+    const decrypted = code.codeCipher ? decryptString(code.codeCipher) : null;
+    const now = Date.now();
+    let remainingMinutes = 0;
+    if (code.expiresAt) {
+      remainingMinutes = Math.max(0, Math.ceil((new Date(code.expiresAt).getTime() - now) / 60000));
+    }
+
+    return {
+      success: true,
+      found: true,
+      code: {
+        id: code.id,
+        plainCode: decrypted,
+        masked: code.codeMasked,
+        status: code.status,
+        batchName: code.batchName,
+        durationType: code.durationType,
+        durationMinutes: code.durationMinutes,
+        startsOn: code.startsOn,
+        activationCount: code.activationCount,
+        maxActivations: code.maxActivations,
+        firstActivatedAt: code.firstActivatedAt,
+        expiresAt: code.expiresAt,
+        remainingMinutes,
+        activations: code.activations,
+      },
+    };
+  },
+
+  // 14. Emergency Broadcast Management
+  updateBroadcast(broadcast: EmergencyBroadcast, ip: string): boolean {
+    dbEngine.update((db) => {
+      db.settings.emergencyBroadcast = {
+        enabled: !!broadcast.enabled,
+        message: (broadcast.message || '').trim().slice(0, 300),
+        level: broadcast.level || 'vip',
+        updatedAt: new Date().toISOString(),
+      };
+    });
+
+    this.logAudit(
+      'BROADCAST_UPDATED',
+      `تم تحديث إعلان الطوارئ العام: [${broadcast.enabled ? 'مفعل' : 'معطل'}] "${broadcast.message}"`,
+      ip
+    );
+
+    return true;
+  },
+
+  // 15. Decrypt Code (for admin export / reveal)
   decryptFullCode(codeId: string): string | null {
     const db = dbEngine.get();
     const code = db.codes.find((c) => c.id === codeId);

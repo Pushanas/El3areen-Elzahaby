@@ -9,6 +9,11 @@ interface HeaderProps {
   onLockSession: () => void;
   onChangePin: () => void;
   onSecretAdminTrigger?: () => void;
+  broadcast?: {
+    enabled: boolean;
+    message: string;
+    level: 'info' | 'warning' | 'vip' | 'alert';
+  } | null;
 }
 
 export const Header: React.FC<HeaderProps> = ({
@@ -17,6 +22,7 @@ export const Header: React.FC<HeaderProps> = ({
   onLockSession,
   onChangePin,
   onSecretAdminTrigger,
+  broadcast,
 }) => {
   const [currentTime, setCurrentTime] = useState('');
 
@@ -112,6 +118,27 @@ export const Header: React.FC<HeaderProps> = ({
           </button>
         </div>
       </div>
+
+      {/* Emergency / VIP Broadcast Ribbon */}
+      {broadcast?.enabled && broadcast?.message && (
+        <div
+          className={`mt-2 py-1.5 px-3 rounded-xl border text-[11px] font-bold flex items-center justify-between gap-2 animate-pulse ${
+            broadcast.level === 'alert'
+              ? 'bg-[#331111] text-[#fca5a5] border-[#ef4444]/50'
+              : broadcast.level === 'warning'
+              ? 'bg-[#33220a] text-[#fde047] border-[#eab308]/50'
+              : 'bg-[#221808] text-[#ffd700] border-[#d4af37]/60 shadow-[0_0_15px_rgba(212,175,55,0.2)]'
+          }`}
+        >
+          <div className="flex items-center gap-1.5 truncate">
+            <span className="text-xs">📢</span>
+            <span className="truncate">{broadcast.message}</span>
+          </div>
+          <span className="text-[9px] uppercase tracking-wider px-1.5 py-0.5 rounded bg-black/40 border border-white/10 shrink-0">
+            {broadcast.level === 'vip' ? 'VIP' : 'تنبيه'}
+          </span>
+        </div>
+      )}
     </header>
   );
 };

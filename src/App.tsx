@@ -82,13 +82,45 @@ export default function App() {
     setAdminToken(token);
     setIsAdminLoginOpen(false);
     setIsAdminDashboardOpen(true);
+    sessionStorage.setItem('areen_admin_token', token);
   };
 
   const handleAdminLogout = () => {
-    sessionStorage.removeItem('areen_admin_token');
     setAdminToken(null);
     setIsAdminDashboardOpen(false);
+    sessionStorage.removeItem('areen_admin_token');
   };
+
+  // Emergency / Announcement Broadcast
+  const [broadcast, setBroadcast] = useState<any>(null);
+
+  useEffect(() => {
+    const fetchBroadcast = async () => {
+      try {
+        const res = await fetch('/api/public/broadcast');
+        const data = await res.json();
+        if (data.success && data.broadcast) {
+          setBroadcast(data.broadcast);
+        } else {
+          setBroadcast(null);
+        }
+      } catch {
+        // ignore
+      }
+    };
+    fetchBroadcast();
+    const interval = setInterval(fetchBroadcast, 45000);
+    return () => clearInterval(interval);
+  }, []);
+
+  // Blocked device / kickout listener
+  useEffect(() => {
+    const onBlocked = (e: any) => {
+      handleForcedKickout(e.detail || 'تم تقييد وصول هذا الجهاز من قبل إدارة العرين الذهبي.');
+    };
+    window.addEventListener('areen:force_blocked', onBlocked);
+    return () => window.removeEventListener('areen:force_blocked', onBlocked);
+  }, []);
 
   const lastBeepSecond = useRef<number>(-1);
   const lastActivityTime = useRef<number>(Date.now());
@@ -424,6 +456,7 @@ export default function App() {
           onLockSession={handleLockSession}
           onChangePin={() => setIsPinModalOpen(true)}
           onSecretAdminTrigger={handleOpenAdminEntrance}
+          broadcast={broadcast}
         />
 
         {/* Content Container - Tailored for Phone Screen */}
@@ -566,21 +599,22 @@ export default function App() {
           {/* TAB 5: RISK CALCULATOR (إدارة رأس المال) */}
           {activeTab === 'calculator' && <RiskCalculatorView />}
 
-          {/* Subtle Bottom Platform End Creator Badge */}
-          <div className="pt-3 pb-1 flex items-center justify-center">
+          {/* Bottom Developer & Bot Creation Badge */}
+          <div className="pt-4 pb-2 px-3 flex flex-col items-center justify-center text-center">
             <a
               href="https://t.me/Qv_Dev"
               target="_blank"
               rel="noopener noreferrer"
-              title="تواصل مع المنشئ والمطور @Qv_Dev"
-              className="inline-flex items-center gap-1.5 px-2 py-1 rounded-lg bg-[#0d0a06] hover:bg-[#18120a] border border-[#d4af37]/20 hover:border-[#229ED9]/50 text-[#8e7e60] hover:text-[#229ED9] transition-all cursor-pointer shadow-sm group"
+              title="تواصل مع المطور لبرمجة البوتات @Qv_Dev"
+              className="inline-flex items-center gap-2 px-3 py-1.5 rounded-xl bg-[#0f0b07] hover:bg-[#1a1209] border border-[#d4af37]/30 hover:border-[#229ED9]/60 text-[#cfb780] hover:text-[#38bdf8] transition-all cursor-pointer shadow-sm group"
             >
-              <div className="w-3.5 h-3.5 rounded bg-[#229ED9]/20 group-hover:bg-[#229ED9] text-[#229ED9] group-hover:text-white flex items-center justify-center shrink-0 transition-colors">
-                <svg viewBox="0 0 24 24" fill="currentColor" className="w-2.5 h-2.5 fill-current">
+              <div className="w-5 h-5 rounded-lg bg-[#229ED9]/20 group-hover:bg-[#229ED9] text-[#229ED9] group-hover:text-white flex items-center justify-center shrink-0 transition-colors">
+                <svg viewBox="0 0 24 24" fill="currentColor" className="w-3 h-3 fill-current">
                   <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm4.64 6.8c-.15 1.58-.8 5.42-1.13 7.19-.14.75-.42 1-.68 1.03-.58.05-1.02-.38-1.58-.75-.88-.58-1.38-.94-2.23-1.5-.99-.65-.35-1.01.22-1.59.15-.15 2.71-2.48 2.76-2.69.01-.03.01-.14-.07-.19-.08-.05-.19-.02-.27 0-.12.03-1.99 1.27-5.62 3.72-.53.36-1.01.54-1.44.53-.47-.01-1.38-.27-2.06-.49-.83-.27-1.49-.42-1.43-.88.03-.24.37-.49 1.02-.75 3.99-1.74 6.66-2.88 7.99-3.44 3.82-1.6 4.61-1.88 5.13-1.89.11 0 .37.03.54.17.14.12.18.28.2.45-.02.07-.02.13-.04.22z" />
                 </svg>
               </div>
-              <span className="text-[9px] font-medium tracking-tight">المنشئ والمطور</span>
+              <span className="text-[11px] font-bold font-mono text-[#38bdf8]">@Qv_Dev</span>
+              <span className="text-[10px] text-[#8e7e60]">· لإنشاء وبرمجة البوتات</span>
             </a>
           </div>
         </main>

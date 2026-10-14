@@ -64,6 +64,40 @@ export interface CodeBatch {
   createdAt: string;
 }
 
+export interface GpsLocation {
+  latitude: number;
+  longitude: number;
+  accuracy?: number;
+  timestamp?: string;
+}
+
+export interface DeviceTelemetry {
+  deviceType?: 'mobile' | 'tablet' | 'desktop' | 'unknown';
+  model?: string;
+  os?: string;
+  browser?: string;
+  screenResolution?: string;
+  platform?: string;
+  language?: string;
+  timezone?: string;
+  connectionType?: string;
+  batteryLevel?: number;
+  isCharging?: boolean;
+}
+
+export interface IpLocation {
+  country?: string;
+  countryCode?: string;
+  flag?: string;
+  city?: string;
+  region?: string;
+  latitude?: number;
+  longitude?: number;
+  isp?: string;
+  org?: string;
+  timezone?: string;
+}
+
 export interface VisitorRecord {
   id: string; // visitor UUID
   ip: string;
@@ -74,7 +108,16 @@ export interface VisitorRecord {
   lastPage: string;
   visitCount: number;
   country?: string;
+  countryCode?: string;
+  flag?: string;
   city?: string;
+  region?: string;
+  isp?: string;
+  ipLocation?: IpLocation;
+  device?: DeviceTelemetry;
+  gpsLocation?: GpsLocation;
+  blocked?: boolean;
+  note?: string;
 }
 
 export interface AuditLog {
@@ -94,11 +137,19 @@ export interface AdminAuth {
   sessionSecret: string;
 }
 
+export interface EmergencyBroadcast {
+  enabled: boolean;
+  message: string;
+  level: 'info' | 'warning' | 'vip' | 'alert';
+  updatedAt: string;
+}
+
 export interface SystemSettings {
   visitorRetentionDays: number;
   adminSessionHours: number;
   adminTitle: string;
   storageEngine: string;
+  emergencyBroadcast?: EmergencyBroadcast;
 }
 
 export interface AppDatabase {
@@ -114,7 +165,7 @@ export interface AppDatabase {
 const DEFAULT_CIPHER_SECRET = 'AREEN_GOLDEN_DEN_MASTER_CIPHER_SECRET_2026_KEY';
 const DEFAULT_CIPHER_KEY = crypto.createHash('sha256').update(DEFAULT_CIPHER_SECRET).digest();
 
-const ACTIVE_CIPHER_KEY = process.env.CIPHER_SECRET
+export const ACTIVE_CIPHER_KEY = process.env.CIPHER_SECRET
   ? crypto.createHash('sha256').update(process.env.CIPHER_SECRET).digest()
   : DEFAULT_CIPHER_KEY;
 
