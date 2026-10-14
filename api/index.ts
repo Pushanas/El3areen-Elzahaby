@@ -1,3 +1,5 @@
+process.env.VERCEL = process.env.VERCEL || '1';
+
 import type { Request, Response } from 'express';
 import { app } from '../server.ts';
 

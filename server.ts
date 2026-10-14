@@ -93,6 +93,11 @@ function verifyPasswordAgainstVault(password: string, vault: VaultData): boolean
 const failedAttemptsMap = new Map<string, { count: number; lockedUntil: number }>();
 
 function getClientIp(req: Request): string {
+  const vercelIp = req.headers['x-vercel-forwarded-for'];
+  if (typeof vercelIp === 'string' && vercelIp.trim()) {
+    const first = vercelIp.split(',')[0].trim();
+    if (first) return first;
+  }
   const cfIp = req.headers['cf-connecting-ip'];
   if (typeof cfIp === 'string' && cfIp.trim()) {
     return cfIp.trim();
@@ -106,7 +111,7 @@ function getClientIp(req: Request): string {
     const first = forwarded.split(',')[0].trim();
     if (first) return first;
   }
-  const raw = req.socket.remoteAddress || '127.0.0.1';
+  const raw = req.socket?.remoteAddress || '127.0.0.1';
   return raw.startsWith('::ffff:') ? raw.slice(7) : raw;
 }
 
@@ -758,7 +763,11 @@ async function startServer() {
 }
 
 // Only listen when running standalone dev server or container, not in Vercel serverless functions
-if (!process.env.VERCEL) {
+const isMainScript = typeof process !== 'undefined' && process.argv && process.argv[1] && (
+  process.argv[1].endsWith('server.ts') || process.argv[1].endsWith('server.js')
+);
+
+if (isMainScript && !process.env.VERCEL && !process.env.VERCEL_ENV) {
   startServer();
 }
 

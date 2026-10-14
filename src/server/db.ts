@@ -308,24 +308,35 @@ class DatabaseEngine {
       path.resolve('/tmp', 'areen_data', 'db.json'),
     ];
 
+    let candidateWithoutCodes: AppDatabase | null = null;
+
     for (const filePath of candidatePaths) {
       if (fs.existsSync(filePath)) {
         try {
           const raw = fs.readFileSync(filePath, 'utf-8');
           const parsed = JSON.parse(raw);
-          if (parsed?.admin && Array.isArray(parsed?.codes) && parsed.codes.length > 0) {
-            this.memoryDb = parsed;
-            // Ensure DB_FILE is populated if we loaded from bundled data
-            if (filePath !== DB_FILE) {
-              this.flushSync();
-              console.log(`[DB] ✅ Initialized DB from ${filePath} with ${parsed.codes.length} codes.`);
+          if (parsed?.admin && Array.isArray(parsed?.codes)) {
+            if (parsed.codes.length > 0) {
+              this.memoryDb = parsed;
+              // Ensure DB_FILE is populated if we loaded from bundled data
+              if (filePath !== DB_FILE) {
+                this.flushSync();
+                console.log(`[DB] ✅ Initialized DB from ${filePath} with ${parsed.codes.length} codes.`);
+              }
+              return parsed;
+            } else if (!candidateWithoutCodes) {
+              candidateWithoutCodes = parsed;
             }
-            return parsed;
           }
         } catch (e) {
           console.warn('[DB] Failed reading candidate DB path:', filePath, e);
         }
       }
+    }
+
+    if (candidateWithoutCodes) {
+      this.memoryDb = candidateWithoutCodes;
+      return candidateWithoutCodes;
     }
 
     const initial = getInitialDatabase();
