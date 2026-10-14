@@ -218,51 +218,56 @@ export const LoginView: React.FC<LoginViewProps> = ({
         </form>
 
         {/* Prominent Guidance Strip: Bot Creation & Activation Support */}
-        <div className="mt-5 pt-4 border-t border-[#d4af37]/20">
-          <div className="bg-gradient-to-br from-[#1b140a] via-[#100c06] to-[#1b140a] border border-[#d4af37]/40 rounded-2xl p-4 shadow-[0_4px_25px_rgba(0,0,0,0.6)] relative overflow-hidden text-right group hover:border-[#ffd700]/70 transition-all">
+        <div className="mt-5 pt-4 border-t border-[#d4af37]/25">
+          <div className="bg-gradient-to-br from-[#1e1509] via-[#100c06] to-[#1e1509] border-2 border-[#229ED9]/50 rounded-2xl p-4.5 shadow-[0_6px_30px_rgba(34,158,217,0.18)] relative overflow-hidden text-right group hover:border-[#ffd700] transition-all">
             {/* Subtle Cyan-Gold Glow */}
-            <div className="absolute top-0 left-0 w-28 h-28 bg-[#229ED9]/15 rounded-full blur-2xl pointer-events-none" />
+            <div className="absolute top-0 right-0 w-36 h-36 bg-[#229ED9]/20 rounded-full blur-2xl pointer-events-none" />
 
-            <div className="flex items-center justify-between gap-2 mb-2">
-              <div className="flex items-center gap-2">
-                <div className="w-6 h-6 rounded-lg bg-[#229ED9]/20 border border-[#229ED9]/40 flex items-center justify-center text-[#38bdf8]">
-                  <Bot className="w-3.5 h-3.5" />
+            <div className="flex items-center justify-between gap-2 mb-2.5">
+              <div className="flex items-center gap-2.5">
+                <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-[#229ED9] to-[#1778a8] text-white flex items-center justify-center shadow-md">
+                  <Bot className="w-4.5 h-4.5 animate-pulse" />
                 </div>
-                <span className="text-xs font-bold text-[#ffd700]">
-                  بوت التواصل وطلب الأكواد وتطوير البوتات
-                </span>
+                <div>
+                  <span className="text-xs font-black text-[#ffd700] block">
+                    مركز طلب وبرمجة بوتات التواصل والتداول
+                  </span>
+                  <span className="text-[10px] text-[#38bdf8] font-semibold">
+                    إنشاء بوتات تواصل، تيليجرام، وتفعيل فوري
+                  </span>
+                </div>
               </div>
-              <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-[#229ED9]/15 text-[#38bdf8] border border-[#229ED9]/30 font-bold">
-                Official Telegram
+              <span className="text-[10px] font-mono px-2.5 py-1 rounded-full bg-[#229ED9]/20 text-[#38bdf8] border border-[#229ED9]/40 font-black">
+                بوت رسمي ⚡
               </span>
             </div>
 
-            <p className="text-[11px] text-[#cfb780] leading-relaxed mb-3">
-              للحصول على كود اشتراك فوري، أو لطلب <span className="text-[#ffd700] font-bold">إنشاء وبرمجة بوتات تواصل وتداول مخصصة</span>، تواصل مباشرة مع المطور:
+            <p className="text-xs text-[#ebd8b0] leading-relaxed mb-3.5 bg-[#0a0704]/70 p-2.5 rounded-xl border border-[#d4af37]/20">
+              للحصول على كود اشتراك فوري، أو لطلب <span className="text-[#ffd700] font-bold underline decoration-[#229ED9]">إنشاء بوتات تواصل وتداول مخصصة</span> وربطها بالمنظومة، تواصل الآن مع المعرف الرسمي للمطور:
             </p>
 
-            {/* Prominent Telegram Handle Box */}
-            <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-2.5 bg-[#080603] border border-[#d4af37]/35 rounded-xl p-2.5 shadow-inner">
+            {/* Extra Large Prominent Telegram Handle Box */}
+            <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 bg-[#060402] border-2 border-[#229ED9]/60 rounded-2xl p-3.5 shadow-xl">
               <a
                 href="https://t.me/Qv_Dev"
                 target="_blank"
                 rel="noopener noreferrer"
-                className="flex items-center gap-2.5 text-white hover:text-[#38bdf8] transition-colors group/link"
+                className="flex items-center gap-3 text-white hover:text-[#38bdf8] transition-colors group/link"
               >
-                <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-[#229ED9] to-[#1778a8] text-white flex items-center justify-center shrink-0 shadow-md group-hover/link:scale-105 transition-transform">
-                  <svg viewBox="0 0 24 24" fill="currentColor" className="w-5 h-5 fill-current">
+                <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-[#229ED9] to-[#126189] text-white flex items-center justify-center shrink-0 shadow-lg group-hover/link:scale-110 transition-transform">
+                  <svg viewBox="0 0 24 24" fill="currentColor" className="w-7 h-7 fill-current">
                     <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm4.64 6.8c-.15 1.58-.8 5.42-1.13 7.19-.14.75-.42 1-.68 1.03-.58.05-1.02-.38-1.58-.75-.88-.58-1.38-.94-2.23-1.5-.99-.65-.35-1.01.22-1.59.15-.15 2.71-2.48 2.76-2.69.01-.03.01-.14-.07-.19-.08-.05-.19-.02-.27 0-.12.03-1.99 1.27-5.62 3.72-.53.36-1.01.54-1.44.53-.47-.01-1.38-.27-2.06-.49-.83-.27-1.49-.42-1.43-.88.03-.24.37-.49 1.02-.75 3.99-1.74 6.66-2.88 7.99-3.44 3.82-1.6 4.61-1.88 5.13-1.89.11 0 .37.03.54.17.14.12.18.28.2.45-.02.07-.02.13-.04.22z" />
                   </svg>
                 </div>
                 <div>
-                  <div className="flex items-center gap-1.5">
-                    <span className="font-mono text-base font-black tracking-wider text-[#38bdf8] group-hover/link:text-white transition-colors">
+                  <div className="flex items-center gap-2">
+                    <span className="font-mono text-lg font-black tracking-wider text-[#38bdf8] group-hover/link:text-white transition-colors bg-[#229ED9]/10 px-2.5 py-0.5 rounded-lg border border-[#229ED9]/30">
                       @Qv_Dev
                     </span>
-                    <span className="w-2 h-2 rounded-full bg-[#22c55e] animate-pulse" title="متصل الآن" />
+                    <span className="w-2.5 h-2.5 rounded-full bg-[#22c55e] animate-ping" title="متصل الآن" />
                   </div>
-                  <span className="text-[10px] text-[#8e7e60] block">
-                    المنشئ والمطور المعتمد · برمجة البوتات
+                  <span className="text-[11px] text-[#cfb780] block mt-1 font-bold">
+                    معرف المطور الرسمي · برمجة بوتات التواصل والرد الآلي
                   </span>
                 </div>
               </a>
@@ -272,18 +277,18 @@ export const LoginView: React.FC<LoginViewProps> = ({
                 <button
                   type="button"
                   onClick={handleCopyHandle}
-                  className="flex-1 sm:flex-none py-1.5 px-3 rounded-xl bg-[#191107] hover:bg-[#281b0a] border border-[#d4af37]/40 text-xs font-bold text-[#ffd700] flex items-center justify-center gap-1.5 transition-all cursor-pointer shadow-sm active:scale-95"
+                  className="flex-1 sm:flex-none py-2 px-3.5 rounded-xl bg-[#151007] hover:bg-[#251a0b] border border-[#d4af37]/50 text-xs font-black text-[#ffd700] flex items-center justify-center gap-1.5 transition-all cursor-pointer shadow-md active:scale-95"
                   title="نسخ المعرف"
                 >
                   {copiedHandle ? (
                     <>
-                      <Check className="w-3.5 h-3.5 text-[#22c55e]" />
+                      <Check className="w-4 h-4 text-[#22c55e]" />
                       <span className="text-[#22c55e]">تم النسخ!</span>
                     </>
                   ) : (
                     <>
-                      <Copy className="w-3.5 h-3.5 text-[#ffd700]" />
-                      <span>نسخ</span>
+                      <Copy className="w-4 h-4 text-[#ffd700]" />
+                      <span>نسخ المعرف</span>
                     </>
                   )}
                 </button>
@@ -293,10 +298,10 @@ export const LoginView: React.FC<LoginViewProps> = ({
                   href="https://t.me/Qv_Dev"
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="flex-1 sm:flex-none py-1.5 px-3 rounded-xl bg-gradient-to-r from-[#229ED9] to-[#1b82b3] hover:brightness-110 text-white text-xs font-bold flex items-center justify-center gap-1.5 transition-all shadow-md cursor-pointer active:scale-95"
+                  className="flex-1 sm:flex-none py-2 px-3.5 rounded-xl bg-gradient-to-r from-[#229ED9] to-[#126189] hover:brightness-110 text-white text-xs font-black flex items-center justify-center gap-1.5 transition-all shadow-lg cursor-pointer active:scale-95"
                 >
-                  <Send className="w-3.5 h-3.5" />
-                  <span>مراسلة الآن</span>
+                  <Send className="w-4 h-4" />
+                  <span>مراسلة البوت</span>
                 </a>
               </div>
             </div>
