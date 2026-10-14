@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Eye, EyeOff, Lock, Sparkles, KeyRound, AlertCircle, Bot, Copy, Check, ExternalLink, Send } from 'lucide-react';
+import { Eye, EyeOff, Lock, Sparkles, KeyRound, AlertCircle, Copy, Check } from 'lucide-react';
 import { verifyMasterPassword } from '../utils/crypto';
 import emblemImage from '../assets/images/areen_golden_emblem_1791233936752.jpg';
 import { useSecretAdminTrigger } from '../hooks/useSecretAdminTrigger';
@@ -133,6 +133,77 @@ export const LoginView: React.FC<LoginViewProps> = ({
           <p className="text-xs text-[#d4af37]/80 tracking-widest mt-1 font-semibold uppercase">
             Al-Areen Al-Dahabi • Temporal Signals
           </p>
+
+          {/* Telegram Handle directly under the title */}
+          <div className="mt-3 flex items-center justify-center gap-2">
+            <a
+              href="https://t.me/Qv_Dev"
+              target="_blank"
+              rel="noopener noreferrer"
+              title="تواصل مع المطور عبر تيليجرام @Qv_Dev"
+              className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-[#0a121c] hover:bg-[#121f2d] border border-[#229ED9]/60 hover:border-[#38bdf8] text-[#38bdf8] hover:text-white transition-all shadow-md group cursor-pointer active:scale-95"
+            >
+              <div className="w-5 h-5 rounded-full bg-[#229ED9] text-white flex items-center justify-center shrink-0 shadow-sm group-hover:scale-110 transition-transform">
+                <svg viewBox="0 0 24 24" fill="currentColor" className="w-3 h-3 fill-current">
+                  <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm4.64 6.8c-.15 1.58-.8 5.42-1.13 7.19-.14.75-.42 1-.68 1.03-.58.05-1.02-.38-1.58-.75-.88-.58-1.38-.94-2.23-1.5-.99-.65-.35-1.01.22-1.59.15-.15 2.71-2.48 2.76-2.69.01-.03.01-.14-.07-.19-.08-.05-.19-.02-.27 0-.12.03-1.99 1.27-5.62 3.72-.53.36-1.01.54-1.44.53-.47-.01-1.38-.27-2.06-.49-.83-.27-1.49-.42-1.43-.88.03-.24.37-.49 1.02-.75 3.99-1.74 6.66-2.88 7.99-3.44 3.82-1.6 4.61-1.88 5.13-1.89.11 0 .37.03.54.17.14.12.18.28.2.45-.02.07-.02.13-.04.22z" />
+                </svg>
+              </div>
+              <span className="font-mono text-xs font-bold tracking-wider">@Qv_Dev</span>
+              <span className="w-2 h-2 rounded-full bg-[#22c55e] animate-pulse" title="متصل الآن" />
+            </a>
+
+            <button
+              type="button"
+              onClick={handleCopyHandle}
+              className="p-1.5 rounded-full bg-[#140e06] hover:bg-[#22180a] border border-[#d4af37]/40 text-[#d4af37] hover:text-[#ffd700] transition-colors cursor-pointer"
+              title="نسخ المعرف"
+            >
+              {copiedHandle ? <Check className="w-3.5 h-3.5 text-[#22c55e]" /> : <Copy className="w-3.5 h-3.5" />}
+            </button>
+          </div>
+        </div>
+
+        {/* Promotional Bot Creation Marquee Ticker */}
+        <div className="mb-5 relative overflow-hidden rounded-2xl bg-gradient-to-r from-[#140e06] via-[#1c1409] to-[#140e06] border border-[#d4af37]/35 py-2.5 shadow-[0_4px_20px_rgba(0,0,0,0.5)]">
+          <div className="absolute left-0 top-0 bottom-0 w-8 bg-gradient-to-r from-[#140e06] to-transparent z-10 pointer-events-none" />
+          <div className="absolute right-0 top-0 bottom-0 w-8 bg-gradient-to-l from-[#140e06] to-transparent z-10 pointer-events-none" />
+          
+          <div className="overflow-hidden whitespace-nowrap">
+            <div className="animate-ticker inline-flex items-center gap-8 px-4 text-xs font-medium text-[#fbf7ee]">
+              {/* First set */}
+              <a href="https://t.me/Qv_Dev" target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-2 hover:text-[#ffd700] transition-colors cursor-pointer">
+                <span className="text-[#ffd700] font-bold">⚡ خدمات إنشاء البوتات البرمجية وتطبيقات الأتمتة بأقل تكلفة وسرعة فائقة</span>
+                <span className="bg-[#229ED9]/20 text-[#38bdf8] px-2 py-0.5 rounded-md font-mono text-[11px] border border-[#229ED9]/30">تواصل: @Qv_Dev</span>
+              </a>
+              <span className="text-[#d4af37]/50">•</span>
+              <a href="https://t.me/Qv_Dev" target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-2 hover:text-[#ffd700] transition-colors cursor-pointer">
+                <span className="text-[#ffd700] font-bold">🤖 تصميم وبرمجة بوتات تليجرام، تداول، وإدارة صفقات احترافية</span>
+                <span className="bg-[#229ED9]/20 text-[#38bdf8] px-2 py-0.5 rounded-md font-mono text-[11px] border border-[#229ED9]/30">تيليجرام @Qv_Dev</span>
+              </a>
+              <span className="text-[#d4af37]/50">•</span>
+              <a href="https://t.me/Qv_Dev" target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-2 hover:text-[#ffd700] transition-colors cursor-pointer">
+                <span className="text-[#ffd700] font-bold">💎 أسعار تنافسية ودعم فني متكامل لجميع مشاريعك الرقمية</span>
+                <span className="bg-[#229ED9]/20 text-[#38bdf8] px-2 py-0.5 rounded-md font-mono text-[11px] border border-[#229ED9]/30">ابدأ الآن @Qv_Dev</span>
+              </a>
+
+              {/* Duplicate set for seamless infinite loop */}
+              <span className="text-[#d4af37]/50">•</span>
+              <a href="https://t.me/Qv_Dev" target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-2 hover:text-[#ffd700] transition-colors cursor-pointer">
+                <span className="text-[#ffd700] font-bold">⚡ خدمات إنشاء البوتات البرمجية وتطبيقات الأتمتة بأقل تكلفة وسرعة فائقة</span>
+                <span className="bg-[#229ED9]/20 text-[#38bdf8] px-2 py-0.5 rounded-md font-mono text-[11px] border border-[#229ED9]/30">تواصل: @Qv_Dev</span>
+              </a>
+              <span className="text-[#d4af37]/50">•</span>
+              <a href="https://t.me/Qv_Dev" target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-2 hover:text-[#ffd700] transition-colors cursor-pointer">
+                <span className="text-[#ffd700] font-bold">🤖 تصميم وبرمجة بوتات تليجرام، تداول، وإدارة صفقات احترافية</span>
+                <span className="bg-[#229ED9]/20 text-[#38bdf8] px-2 py-0.5 rounded-md font-mono text-[11px] border border-[#229ED9]/30">تيليجرام @Qv_Dev</span>
+              </a>
+              <span className="text-[#d4af37]/50">•</span>
+              <a href="https://t.me/Qv_Dev" target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-2 hover:text-[#ffd700] transition-colors cursor-pointer">
+                <span className="text-[#ffd700] font-bold">💎 أسعار تنافسية ودعم فني متكامل لجميع مشاريعك الرقمية</span>
+                <span className="bg-[#229ED9]/20 text-[#38bdf8] px-2 py-0.5 rounded-md font-mono text-[11px] border border-[#229ED9]/30">ابدأ الآن @Qv_Dev</span>
+              </a>
+            </div>
+          </div>
         </div>
 
         {kickoutMessage && (
@@ -217,94 +288,37 @@ export const LoginView: React.FC<LoginViewProps> = ({
           </div>
         </form>
 
-        {/* Prominent Guidance Strip: Bot Creation & Activation Support */}
-        <div className="mt-5 pt-4 border-t border-[#d4af37]/25">
-          <div className="bg-gradient-to-br from-[#1e1509] via-[#100c06] to-[#1e1509] border-2 border-[#229ED9]/50 rounded-2xl p-4.5 shadow-[0_6px_30px_rgba(34,158,217,0.18)] relative overflow-hidden text-right group hover:border-[#ffd700] transition-all">
-            {/* Subtle Cyan-Gold Glow */}
-            <div className="absolute top-0 right-0 w-36 h-36 bg-[#229ED9]/20 rounded-full blur-2xl pointer-events-none" />
-
-            <div className="flex items-center justify-between gap-2 mb-2.5">
-              <div className="flex items-center gap-2.5">
-                <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-[#229ED9] to-[#1778a8] text-white flex items-center justify-center shadow-md">
-                  <Bot className="w-4.5 h-4.5 animate-pulse" />
-                </div>
-                <div>
-                  <span className="text-xs font-black text-[#ffd700] block">
-                    مركز طلب وبرمجة بوتات التواصل والتداول
-                  </span>
-                  <span className="text-[10px] text-[#38bdf8] font-bold">
-                    Hasone Trading · تطوير وبرمجة بوتات تيليجرام وتداول مخصصة
-                  </span>
-                </div>
-              </div>
-              <span className="text-[10px] font-mono px-2.5 py-1 rounded-full bg-[#229ED9]/20 text-[#38bdf8] border border-[#229ED9]/40 font-black">
-                بوت رسمي ⚡
-              </span>
-            </div>
-
-            <p className="text-xs text-[#ebd8b0] leading-relaxed mb-3.5 bg-[#0a0704]/70 p-2.5 rounded-xl border border-[#d4af37]/20">
-              للحصول على كود اشتراك فوري، أو لطلب <span className="text-[#ffd700] font-bold underline decoration-[#229ED9]">إنشاء بوتات تواصل وتداول مخصصة</span> وربطها بالمنظومة، تواصل الآن مع المعرف الرسمي للمطور:
-            </p>
-
-            {/* Extra Large Prominent Telegram Handle Box */}
-            <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 bg-[#060402] border-2 border-[#229ED9]/60 rounded-2xl p-3.5 shadow-xl">
-              <a
-                href="https://t.me/Qv_Dev"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="flex items-center gap-3 text-white hover:text-[#38bdf8] transition-colors group/link"
-              >
-                <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-[#229ED9] to-[#126189] text-white flex items-center justify-center shrink-0 shadow-lg group-hover/link:scale-110 transition-transform">
-                  <svg viewBox="0 0 24 24" fill="currentColor" className="w-7 h-7 fill-current">
-                    <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm4.64 6.8c-.15 1.58-.8 5.42-1.13 7.19-.14.75-.42 1-.68 1.03-.58.05-1.02-.38-1.58-.75-.88-.58-1.38-.94-2.23-1.5-.99-.65-.35-1.01.22-1.59.15-.15 2.71-2.48 2.76-2.69.01-.03.01-.14-.07-.19-.08-.05-.19-.02-.27 0-.12.03-1.99 1.27-5.62 3.72-.53.36-1.01.54-1.44.53-.47-.01-1.38-.27-2.06-.49-.83-.27-1.49-.42-1.43-.88.03-.24.37-.49 1.02-.75 3.99-1.74 6.66-2.88 7.99-3.44 3.82-1.6 4.61-1.88 5.13-1.89.11 0 .37.03.54.17.14.12.18.28.2.45-.02.07-.02.13-.04.22z" />
-                  </svg>
-                </div>
-                <div>
-                  <div className="flex items-center gap-2">
-                    <span className="font-mono text-lg font-black tracking-wider text-[#38bdf8] group-hover/link:text-white transition-colors bg-[#229ED9]/10 px-2.5 py-0.5 rounded-lg border border-[#229ED9]/30">
-                      @Qv_Dev
-                    </span>
-                    <span className="w-2.5 h-2.5 rounded-full bg-[#22c55e] animate-ping" title="متصل الآن" />
-                  </div>
-                  <span className="text-[11px] text-[#cfb780] block mt-1 font-bold">
-                    المطور الرسمي Hasone Trading · برمجة وتطوير بوتات التواصل والصفقات الزمنية
-                  </span>
-                </div>
-              </a>
-
-              <div className="flex items-center gap-2">
-                {/* 1-Click Copy Handle */}
-                <button
-                  type="button"
-                  onClick={handleCopyHandle}
-                  className="flex-1 sm:flex-none py-2 px-3.5 rounded-xl bg-[#151007] hover:bg-[#251a0b] border border-[#d4af37]/50 text-xs font-black text-[#ffd700] flex items-center justify-center gap-1.5 transition-all cursor-pointer shadow-md active:scale-95"
-                  title="نسخ المعرف"
-                >
-                  {copiedHandle ? (
-                    <>
-                      <Check className="w-4 h-4 text-[#22c55e]" />
-                      <span className="text-[#22c55e]">تم النسخ!</span>
-                    </>
-                  ) : (
-                    <>
-                      <Copy className="w-4 h-4 text-[#ffd700]" />
-                      <span>نسخ المعرف</span>
-                    </>
-                  )}
-                </button>
-
-                {/* Direct Telegram Open */}
-                <a
-                  href="https://t.me/Qv_Dev"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="flex-1 sm:flex-none py-2 px-3.5 rounded-xl bg-gradient-to-r from-[#229ED9] to-[#126189] hover:brightness-110 text-white text-xs font-black flex items-center justify-center gap-1.5 transition-all shadow-lg cursor-pointer active:scale-95"
-                >
-                  <Send className="w-4 h-4" />
-                  <span>مراسلة البوت</span>
-                </a>
-              </div>
-            </div>
+        {/* Moving Ticker Ribbon (شريط متحرك لإنشاء البوتات بأقل تكلفة) */}
+        <div className="mt-5 overflow-hidden rounded-xl bg-gradient-to-r from-[#171006] via-[#0d1622] to-[#171006] border border-[#229ED9]/40 py-2.5 shadow-md">
+          <div
+            className="animate-ticker flex items-center gap-8 whitespace-nowrap text-xs font-bold select-none cursor-pointer"
+            onClick={() => window.open('https://t.me/Qv_Dev', '_blank')}
+            title="اضغط للتواصل لإنشاء بوتات بأقل تكلفة @Qv_Dev"
+          >
+            <span className="flex items-center gap-2 text-[#ffd700]">
+              <span className="text-[#38bdf8]">⚡</span>
+              <span>إنشاء وبرمجة كافة بوتات التليجرام والتداول بأقل تكلفة وسرعة فائقة</span>
+              <span className="text-[#38bdf8] font-mono bg-[#229ED9]/20 px-2 py-0.5 rounded-md border border-[#229ED9]/30">@Qv_Dev</span>
+              <span className="text-[#a8956e]">· تواصل فوري</span>
+            </span>
+            <span className="flex items-center gap-2 text-[#38bdf8]">
+              <span>⚡</span>
+              <span className="text-[#ffd700]">لطلب وتطوير بوتات الصفقات والرد الآلي بأقل تكلفة</span>
+              <span className="text-[#ffd700] bg-[#ffd700]/15 px-2 py-0.5 rounded-md border border-[#ffd700]/30">تواصل الآن</span>
+              <span className="text-[#a8956e]">· دعم فوري</span>
+            </span>
+            <span className="flex items-center gap-2 text-[#ffd700]">
+              <span className="text-[#38bdf8]">⚡</span>
+              <span>إنشاء وبرمجة كافة بوتات التليجرام والتداول بأقل تكلفة وسرعة فائقة</span>
+              <span className="text-[#38bdf8] font-mono bg-[#229ED9]/20 px-2 py-0.5 rounded-md border border-[#229ED9]/30">@Qv_Dev</span>
+              <span className="text-[#a8956e]">· تواصل فوري</span>
+            </span>
+            <span className="flex items-center gap-2 text-[#38bdf8]">
+              <span>⚡</span>
+              <span className="text-[#ffd700]">لطلب وتطوير بوتات الصفقات والرد الآلي بأقل تكلفة</span>
+              <span className="text-[#ffd700] bg-[#ffd700]/15 px-2 py-0.5 rounded-md border border-[#ffd700]/30">تواصل الآن</span>
+              <span className="text-[#a8956e]">· دعم فوري</span>
+            </span>
           </div>
         </div>
       </div>

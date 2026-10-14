@@ -22,6 +22,7 @@ import {
   X,
   LogOut,
   AlertTriangle,
+  AlertCircle,
   History,
   Settings,
   Activity,
@@ -93,6 +94,12 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
   const [codesStatusFilter, setCodesStatusFilter] = useState<string>('all');
   const [revealedCodes, setRevealedCodes] = useState<{ [id: string]: string }>({});
   const [selectedCodeDetails, setSelectedCodeDetails] = useState<any | null>(null);
+
+  // Code Tester State
+  const [showCodeTester, setShowCodeTester] = useState<boolean>(false);
+  const [testCodeInput, setTestCodeInput] = useState<string>('');
+  const [testCodeResult, setTestCodeResult] = useState<any | null>(null);
+  const [testingCode, setTestingCode] = useState<boolean>(false);
 
   // Code Generator State
   const [genCount, setGenCount] = useState<number>(5);
@@ -430,6 +437,35 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
     }
   };
 
+  // Test / Validate Any Code Instantly
+  const handleTestCode = async (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
+    const clean = testCodeInput.trim();
+    if (!clean) {
+      showNotification('يرجى كتابة أو لصق الكود للفحص', true);
+      return;
+    }
+    setTestingCode(true);
+    setTestCodeResult(null);
+    try {
+      const res = await authFetch('/api/admin/codes/test', {
+        method: 'POST',
+        body: JSON.stringify({ code: clean }),
+      });
+      const data = await res.json();
+      setTestCodeResult(data);
+      if (data.success && data.found) {
+        showNotification('تم فحص الكود بنجاح!');
+      } else {
+        showNotification(data.error || 'الكود غير موجود في النظام', true);
+      }
+    } catch {
+      showNotification('تعذر الاتصال بخادم الفحص', true);
+    } finally {
+      setTestingCode(false);
+    }
+  };
+
   // Toggle Block Visitor
   const handleToggleBlock = async (visitorId: string) => {
     try {
@@ -445,6 +481,73 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
       }
     } catch {
       showNotification('فشل تحديث حالة الحظر', true);
+    }
+  };
+
+  // Permanent Code Deletion
+  const handleDeleteCode = async (id: string) => {
+    if (!window.confirm('هل أنت متأكد من الحذف النهائي لهذا الكود من قاعدة البيانات؟ لا يمكن التراجع عن هذه الخطوة.')) return;
+    try {
+      const res = await authFetch(`/api/admin/codes/${id}`, { method: 'DELETE' });
+      const data = await res.json();
+      if (data.success) {
+        showNotification('تم حذف كود الترخيص نهائياً من قاعدة البيانات');
+        fetchCodes();
+        fetchOverview();
+        if (selectedCodeDetails?.id === id) {
+          setSelectedCodeDetails(null);
+        }
+      }
+    } catch {
+      showNotification('فشل حذف الكود', true);
+    }
+  };
+
+  // Permanent Batch Deletion
+  const handleDeleteBatch = async (batchId: string, batchName?: string) => {
+    if (!window.confirm(`هل أنت متأكد من حذف الدفعة [${batchName || ''}] بالكامل وكافة الأكواد المرتبطة بها؟`)) return;
+    try {
+      const res = await authFetch(`/api/admin/batches/${batchId}`, { method: 'DELETE' });
+      const data = await res.json();
+      if (data.success) {
+        showNotification(`تم حذف الدفعة وحذف ${data.deletedCodes || 0} كود بنجاح`);
+        fetchCodes();
+        fetchOverview();
+      }
+    } catch {
+      showNotification('فشل حذف الدفعة', true);
+    }
+  };
+
+  // Delete Visitor Record
+  const handleDeleteVisitor = async (visitorId: string) => {
+    if (!window.confirm('هل تريد حذف سجل هذا الزائر وملفه التقني بالكامل؟')) return;
+    try {
+      const res = await authFetch(`/api/admin/visitors/${visitorId}`, { method: 'DELETE' });
+      const data = await res.json();
+      if (data.success) {
+        showNotification('تم حذف سجل الزائر بنجاح');
+        fetchAllVisitors();
+        fetchMapMarkers();
+        fetchOverview();
+      }
+    } catch {
+      showNotification('فشل حذف سجل الزائر', true);
+    }
+  };
+
+  // Clear All Audit Logs
+  const handleClearAuditLogs = async () => {
+    if (!window.confirm('هل أنت متأكد من تفريغ وحذف سجل النشاطات الأمني بالكامل؟')) return;
+    try {
+      const res = await authFetch('/api/admin/audit-logs/clear', { method: 'POST' });
+      const data = await res.json();
+      if (data.success) {
+        showNotification('تم تفريغ سجل النشاطات الأمني بنجاح');
+        fetchAuditLogs();
+      }
+    } catch {
+      showNotification('فشل تفريغ السجل', true);
     }
   };
 
@@ -1393,6 +1496,23 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                   <div className="flex items-center gap-2">
                     <button
                       type="button"
+                      onClick={() => {
+                        setShowCodeTester(!showCodeTester);
+                        setTestCodeResult(null);
+                      }}
+                      className={`py-2 px-3 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer border ${
+                        showCodeTester
+                          ? 'bg-[#2a1d08] text-[#ffd700] border-[#ffd700] shadow-[0_0_12px_rgba(255,215,0,0.25)]'
+                          : 'bg-[#140e07] hover:bg-[#20170a] text-[#cfb780] border-[#d4af37]/30'
+                      }`}
+                      title="فحص واختبار صلاحية أي كود فورياً دون الخروج"
+                    >
+                      <Key className="w-3.5 h-3.5 text-[#ffd700]" />
+                      <span>فحص واختبار كود</span>
+                    </button>
+
+                    <button
+                      type="button"
                       onClick={handleExportCsv}
                       className="py-2 px-3 rounded-xl bg-[#140e07] hover:bg-[#20170a] text-[#4ade80] border border-[#22c55e]/30 text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer"
                     >
@@ -1410,6 +1530,149 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                     </button>
                   </div>
                 </div>
+
+                {/* Live Code Tester Panel */}
+                {showCodeTester && (
+                  <div className="bg-gradient-to-b from-[#181106] to-[#0d0904] border-2 border-[#d4af37]/50 rounded-2xl p-4 shadow-2xl animate-in fade-in slide-in-from-top-2 duration-200">
+                    <div className="flex items-center justify-between border-b border-[#d4af37]/25 pb-2.5 mb-3">
+                      <div className="flex items-center gap-2">
+                        <div className="w-7 h-7 rounded-lg bg-[#2b1f0a] border border-[#d4af37]/40 flex items-center justify-center text-[#ffd700]">
+                          <Key className="w-4 h-4" />
+                        </div>
+                        <div>
+                          <h3 className="text-xs font-bold text-[#ffd700]">
+                            فاحص التراخيص والأكواد الفوري (Code Inspector)
+                          </h3>
+                          <p className="text-[10px] text-[#8e7e60]">
+                            أدخل أي كود ترخيص مشفر أو صريح للتحقق من حالته وأجهزته المربوطة وصلاحيته
+                          </p>
+                        </div>
+                      </div>
+                      <button
+                        onClick={() => setShowCodeTester(false)}
+                        className="p-1 rounded-lg text-[#8e7e60] hover:text-[#ffd700] hover:bg-[#20180c] transition-colors"
+                      >
+                        <X className="w-4 h-4" />
+                      </button>
+                    </div>
+
+                    <form onSubmit={handleTestCode} className="flex gap-2 mb-3">
+                      <input
+                        type="text"
+                        value={testCodeInput}
+                        onChange={(e) => setTestCodeInput(e.target.value)}
+                        placeholder="الصق كود الترخيص هنا للفحص (مثال: AREEN-24H-XXXX)..."
+                        className="flex-1 py-2 px-3 rounded-xl bg-[#090704] border border-[#d4af37]/35 text-white font-mono text-xs focus:outline-none focus:border-[#ffd700]"
+                      />
+                      <button
+                        type="submit"
+                        disabled={testingCode || !testCodeInput.trim()}
+                        className="py-2 px-4 rounded-xl bg-gradient-to-r from-[#ffd700] to-[#b38f26] text-black font-black text-xs hover:brightness-110 disabled:opacity-40 transition-all cursor-pointer flex items-center gap-1.5"
+                      >
+                        {testingCode ? <RotateCw className="w-3.5 h-3.5 animate-spin" /> : <Search className="w-3.5 h-3.5" />}
+                        <span>{testingCode ? 'جارٍ الفحص...' : 'فحص الصلاحية'}</span>
+                      </button>
+                    </form>
+
+                    {testCodeResult && (
+                      <div className="p-3 rounded-xl bg-[#0a0703] border border-[#d4af37]/30 text-xs">
+                        {testCodeResult.found && testCodeResult.code ? (
+                          <div className="space-y-2">
+                            <div className="flex flex-wrap items-center justify-between gap-2 border-b border-[#d4af37]/20 pb-2">
+                              <div className="flex items-center gap-2">
+                                <span className="font-bold text-[#cfb780]">الحالة الحالية:</span>
+                                <span
+                                  className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
+                                    testCodeResult.code.status === 'active'
+                                      ? 'bg-[#152e1b] text-[#4ade80] border border-[#22c55e]/40'
+                                      : testCodeResult.code.status === 'expired'
+                                      ? 'bg-[#331111] text-[#f87171] border border-[#ef4444]/40'
+                                      : testCodeResult.code.status === 'suspended'
+                                      ? 'bg-[#33220a] text-[#fbbf24] border border-[#f59e0b]/40'
+                                      : 'bg-[#1e1c15] text-[#9ca3af] border border-[#4b5563]/40'
+                                  }`}
+                                >
+                                  {testCodeResult.code.status === 'active'
+                                    ? 'نشط وسارٍ'
+                                    : testCodeResult.code.status === 'expired'
+                                    ? 'منتهي الصلاحية'
+                                    : testCodeResult.code.status === 'suspended'
+                                    ? 'موقوف مؤقتاً'
+                                    : 'جديد (غير مفعل)'}
+                                </span>
+                                {testCodeResult.code.remainingMinutes > 0 && (
+                                  <span className="text-[10px] text-[#ffd700] font-mono">
+                                    متبقي: {testCodeResult.code.remainingMinutes} دقيقة (~{(testCodeResult.code.remainingMinutes / 60).toFixed(1)} ساعة)
+                                  </span>
+                                )}
+                              </div>
+                              <div className="flex items-center gap-2">
+                                <span className="text-[#8e7e60]">الدفعة:</span>
+                                <span className="font-bold text-white">{testCodeResult.code.batchName || 'فردي'}</span>
+                              </div>
+                            </div>
+
+                            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2 text-[11px]">
+                              <div>
+                                <span className="text-[#8e7e60]">الكود الأصلي: </span>
+                                <span className="font-mono text-[#ffd700] font-bold select-all">
+                                  {testCodeResult.code.plainCode || testCodeResult.code.masked}
+                                </span>
+                              </div>
+                              <div>
+                                <span className="text-[#8e7e60]">المدة المحددة: </span>
+                                <span className="text-white font-mono">{testCodeResult.code.durationType}</span>
+                              </div>
+                              <div>
+                                <span className="text-[#8e7e60]">التفعيلات: </span>
+                                <span className="text-white font-mono">
+                                  {testCodeResult.code.activationCount || 0} من أصل {testCodeResult.code.maxActivations || 1}
+                                </span>
+                              </div>
+                              <div>
+                                <span className="text-[#8e7e60]">تاريخ الانتهاء: </span>
+                                <span className="text-white font-mono">
+                                  {testCodeResult.code.expiresAt
+                                    ? new Date(testCodeResult.code.expiresAt).toLocaleString('ar-EG')
+                                    : 'يبدأ بعد أول تفعيل'}
+                                </span>
+                              </div>
+                              <div>
+                                <span className="text-[#8e7e60]">أول تفعيل: </span>
+                                <span className="text-white font-mono">
+                                  {testCodeResult.code.firstActivatedAt
+                                    ? new Date(testCodeResult.code.firstActivatedAt).toLocaleString('ar-EG')
+                                    : 'لم يُفعل بعد'}
+                                </span>
+                              </div>
+                            </div>
+
+                            {/* Bound Devices info */}
+                            {Array.isArray(testCodeResult.code.activations) && testCodeResult.code.activations.length > 0 && (
+                              <div className="mt-2 pt-2 border-t border-[#d4af37]/15">
+                                <span className="text-[10px] font-bold text-[#cfb780] block mb-1">الأجهزة المربوطة بالكود:</span>
+                                <div className="space-y-1">
+                                  {testCodeResult.code.activations.map((act: any, idx: number) => (
+                                    <div key={idx} className="flex flex-wrap items-center justify-between gap-1 text-[10px] bg-[#140e06] p-1.5 rounded-lg border border-[#d4af37]/20 font-mono">
+                                      <span className="text-[#ffd700]">الجهاز: {act.deviceName || 'هاتف مشترك'}</span>
+                                      <span className="text-[#38bdf8]">IP: {act.ip || '—'}</span>
+                                      <span className="text-[#8e7e60]">{new Date(act.activatedAt).toLocaleString('ar-EG')}</span>
+                                    </div>
+                                  ))}
+                                </div>
+                              </div>
+                            )}
+                          </div>
+                        ) : (
+                          <div className="flex items-center gap-2 text-[#ff7979] py-1">
+                            <AlertCircle className="w-4 h-4 shrink-0 text-[#ff4d4d]" />
+                            <span>{testCodeResult.error || 'الكود غير موجود في سجلات النظام أو تم حذفه.'}</span>
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                )}
 
                 {/* Codes List Table */}
                 <div className="bg-[#0e0a05] border border-[#d4af37]/25 rounded-2xl overflow-hidden shadow-xl">

@@ -183,7 +183,7 @@ export const AdminLoginModal: React.FC<AdminLoginModalProps> = ({
         </form>
 
         <div className="mt-4 pt-3 border-t border-[#d4af37]/15 text-center text-[10px] text-[#716143]">
-          Hasone Trading Security · منظومة محمية بالكامل بموجب بروتوكول العرين الذهبي المشفر
+          منظومة محمية بالكامل بموجب بروتوكول العرين الذهبي المشفر
         </div>
       </div>
     </div>

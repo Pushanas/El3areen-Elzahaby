@@ -511,6 +511,22 @@ app.post('/api/admin/codes/:id/reset-device', requireAdmin, (req: Request, res: 
   return res.json({ success });
 });
 
+// Admin Delete Single Code
+app.delete('/api/admin/codes/:id', requireAdmin, (req: Request, res: Response) => {
+  const { id } = req.params;
+  const ip = getClientIp(req);
+  const success = adminService.deleteCode(id, ip);
+  return res.json({ success });
+});
+
+// Admin Delete Entire Batch
+app.delete('/api/admin/batches/:id', requireAdmin, (req: Request, res: Response) => {
+  const { id } = req.params;
+  const ip = getClientIp(req);
+  const result = adminService.deleteBatch(id, ip);
+  return res.json(result);
+});
+
 // Admin Test / Simulate Code Validity Tool
 app.post('/api/admin/codes/test', requireAdmin, (req: Request, res: Response) => {
   const { code } = req.body;
@@ -673,10 +689,25 @@ app.post('/api/admin/visitors/prune', requireAdmin, (req: Request, res: Response
   return res.json({ success: true, prunedCount });
 });
 
+// Admin Delete Visitor Dossier Record
+app.delete('/api/admin/visitors/:id', requireAdmin, (req: Request, res: Response) => {
+  const { id } = req.params;
+  const ip = getClientIp(req);
+  const success = adminService.deleteVisitor(id, ip);
+  return res.json({ success });
+});
+
 // Admin Audit Logs List
 app.get('/api/admin/audit-logs', requireAdmin, (req: Request, res: Response) => {
   const db = dbEngine.get();
   return res.json({ success: true, logs: db.auditLogs.slice(0, 100) });
+});
+
+// Admin Clear All Audit Logs
+app.post('/api/admin/audit-logs/clear', requireAdmin, (req: Request, res: Response) => {
+  const ip = getClientIp(req);
+  const success = adminService.clearAuditLogs(ip);
+  return res.json({ success });
 });
 
 // Admin Settings Get

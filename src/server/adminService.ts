@@ -868,4 +868,49 @@ export const adminService = {
     if (!code || !code.codeCipher) return null;
     return decryptString(code.codeCipher);
   },
+
+  // 16. Permanent Code Deletion
+  deleteCode(codeId: string, ip: string): boolean {
+    return dbEngine.updateSync((db) => {
+      const idx = db.codes.findIndex((c) => c.id === codeId);
+      if (idx === -1) return false;
+      const [removed] = db.codes.splice(idx, 1);
+      this.logAudit('CODE_DELETED', `حذف نهائي لكود الترخيص [${removed.codeMasked}]`, ip);
+      return true;
+    });
+  },
+
+  // 17. Batch Deletion
+  deleteBatch(batchId: string, ip: string): { success: boolean; deletedCodes: number } {
+    return dbEngine.updateSync((db) => {
+      const batchIdx = db.batches.findIndex((b) => b.id === batchId);
+      if (batchIdx === -1) return { success: false, deletedCodes: 0 };
+      const [batch] = db.batches.splice(batchIdx, 1);
+      const beforeCodes = db.codes.length;
+      db.codes = db.codes.filter((c) => c.batchId !== batchId);
+      const deletedCodes = beforeCodes - db.codes.length;
+      this.logAudit('BATCH_DELETED', `حذف دفعة الأكواد [${batch.name}] وحذف ${deletedCodes} كود مرتبط`, ip);
+      return { success: true, deletedCodes };
+    });
+  },
+
+  // 18. Delete Visitor Record
+  deleteVisitor(visitorId: string, ip: string): boolean {
+    return dbEngine.updateSync((db) => {
+      const idx = db.visitors.findIndex((v) => v.id === visitorId);
+      if (idx === -1) return false;
+      db.visitors.splice(idx, 1);
+      this.logAudit('VISITOR_DELETED', `حذف سجل الزائر [${visitorId}] من قاعدة البيانات`, ip);
+      return true;
+    });
+  },
+
+  // 19. Clear Audit Logs
+  clearAuditLogs(ip: string): boolean {
+    return dbEngine.updateSync((db) => {
+      db.auditLogs = [];
+      this.logAudit('AUDIT_LOGS_CLEARED', 'تم تفريغ وتنظيف سجل النشاطات الأمني بالكامل', ip);
+      return true;
+    });
+  },
 };

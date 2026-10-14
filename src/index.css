@@ -37,3 +37,24 @@
 .gold-border {
   border-color: rgba(212, 175, 55, 0.28);
 }
+
+/* Continuous Marquee Ticker */
+@keyframes ticker-scroll {
+  0% {
+    transform: translateX(0);
+  }
+  100% {
+    transform: translateX(-50%);
+  }
+}
+
+.animate-ticker {
+  display: flex;
+  width: max-content;
+  animation: ticker-scroll 22s linear infinite;
+}
+
+.animate-ticker:hover {
+  animation-play-state: paused;
+}
+
