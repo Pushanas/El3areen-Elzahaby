@@ -5,7 +5,10 @@ import path from 'path';
 import crypto from 'crypto';
 import { dbEngine, type DurationType, type StartsOnType } from './src/server/db.ts';
 import { adminService } from './src/server/adminService.ts';
-import { envInfo, getStorageDiagnostics } from './database.ts';
+import { envInfo, getStorageDiagnostics, ensureStorageInitialized } from './database.ts';
+
+// Ensure storage directory and files are seeded immediately upon serverless cold start
+ensureStorageInitialized();
 
 const app = express();
 app.use(express.json());
