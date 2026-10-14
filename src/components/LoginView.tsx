@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import { Eye, EyeOff, Lock, Sparkles, KeyRound, AlertCircle, Copy, Check } from 'lucide-react';
+import { Eye, EyeOff, Lock, KeyRound, AlertCircle, Copy, Check, Send, Bot, ShieldCheck, Zap } from 'lucide-react';
 import { verifyMasterPassword } from '../utils/crypto';
-import emblemImage from '../assets/images/areen_golden_emblem_1791233936752.jpg';
+import emblemImage from '../assets/images/areen_brand_logo_1792001509199.jpg';
 import { useSecretAdminTrigger } from '../hooks/useSecretAdminTrigger';
 
 interface LoginViewProps {
@@ -95,114 +95,104 @@ export const LoginView: React.FC<LoginViewProps> = ({
 
   return (
     <div className="min-h-screen flex items-center justify-center p-4 bg-radial from-[#1e160a] via-[#0b0906] to-[#040302] text-[#fbf7ee]">
-      <div className="w-full max-w-md bg-gradient-to-b from-[#18130b] to-[#0e0b07] border border-[#d4af37]/30 rounded-3xl p-6 md:p-8 shadow-[0_20px_70px_rgba(0,0,0,0.8),0_0_40px_rgba(212,175,55,0.12)] relative overflow-hidden">
-        {/* Ambient Top Glow */}
-        <div className="absolute top-0 right-1/2 translate-x-1/2 w-48 h-2 bg-gradient-to-r from-transparent via-[#ffd700] to-transparent opacity-75 blur-xs" />
-        <div className="absolute -top-24 left-1/2 -translate-x-1/2 w-64 h-64 bg-[#d4af37]/10 rounded-full blur-3xl pointer-events-none" />
+      <div className="w-full max-w-md bg-gradient-to-b from-[#18130b] via-[#120e09] to-[#090704] border border-[#d4af37]/35 rounded-3xl p-6 md:p-8 shadow-[0_25px_80px_rgba(0,0,0,0.85),0_0_50px_rgba(212,175,55,0.14)] relative overflow-hidden">
+        {/* Ambient Top Golden Glow */}
+        <div className="absolute top-0 right-1/2 translate-x-1/2 w-48 h-1.5 bg-gradient-to-r from-transparent via-[#ffd700] to-transparent opacity-85 blur-xs" />
+        <div className="absolute -top-24 left-1/2 -translate-x-1/2 w-64 h-64 bg-[#d4af37]/15 rounded-full blur-3xl pointer-events-none" />
 
-        {/* Brand Crest (Secret 5-Tap Gateway for Admin Entrance) */}
-        <div className="flex flex-col items-center text-center mb-6 relative">
+        {/* Brand Royal Crest (Secret 5-Tap Gateway for Admin Entrance - Clean without AI mark) */}
+        <div className="flex flex-col items-center text-center mb-5 relative">
           <div
-            className="relative mb-3 group cursor-pointer select-none"
+            className="relative mb-2 group cursor-pointer select-none"
             onClick={handleTap}
             onTouchEnd={handleTap}
             title="العرين الذهبي"
           >
             <div
-              className={`w-24 h-24 rounded-2xl overflow-hidden border-2 bg-gradient-to-br from-[#2a2010] to-[#140e06] p-1 transition-all duration-300 ${
+              className={`w-28 h-28 rounded-2xl overflow-hidden border-2 bg-gradient-to-br from-[#2a2010] to-[#140e06] p-1 transition-all duration-300 ${
                 pulseActive
-                  ? 'scale-105 border-[#ffd700] shadow-[0_0_45px_rgba(255,215,0,0.85)] ring-2 ring-[#ffd700]'
-                  : 'border-[#d4af37] shadow-[0_0_25px_rgba(212,175,55,0.3)]'
+                  ? 'scale-105 border-[#ffd700] shadow-[0_0_50px_rgba(255,215,0,0.95)] ring-2 ring-[#ffd700]'
+                  : 'border-[#d4af37] shadow-[0_0_35px_rgba(212,175,55,0.4)]'
               }`}
             >
               <img
                 src={emblemImage}
                 alt="شعار العرين الذهبي"
+                referrerPolicy="no-referrer"
                 className="w-full h-full object-cover rounded-xl pointer-events-none"
               />
             </div>
-            <div className="absolute -bottom-2 -left-2 bg-[#d4af37] text-[#080705] p-1.5 rounded-full shadow-md">
-              <Sparkles className="w-4 h-4" />
-            </div>
           </div>
 
-          <h1 className="text-2xl md:text-3xl font-extrabold tracking-tight">
-            <span className="text-[#ffd700]">العرين</span>{' '}
+          <h1 className="text-2xl md:text-3xl font-black tracking-tight flex items-center justify-center gap-2">
+            <span className="text-[#ffd700]">العرين</span>
             <span className="text-[#fbf7ee]">الذهبي</span>
           </h1>
           <p className="text-xs text-[#d4af37]/80 tracking-widest mt-1 font-semibold uppercase">
             Al-Areen Al-Dahabi • Temporal Signals
           </p>
+        </div>
 
-          {/* Telegram Handle directly under the title */}
-          <div className="mt-3 flex items-center justify-center gap-2">
+        {/* Upgraded Single Luxury Service & Custom Bot Creation Card */}
+        <div className="mb-5 relative overflow-hidden rounded-2xl bg-gradient-to-b from-[#191209] via-[#100d07] to-[#0a0805] border border-[#d4af37]/40 p-3.5 shadow-[0_8px_25px_rgba(0,0,0,0.6)]">
+          <div className="flex items-center justify-between border-b border-[#d4af37]/20 pb-2 mb-2.5">
+            <div className="flex items-center gap-2">
+              <div className="w-6 h-6 rounded-lg bg-[#241a0d] border border-[#d4af37]/40 text-[#ffd700] flex items-center justify-center shadow-xs">
+                <Bot className="w-3.5 h-3.5" />
+              </div>
+              <span className="text-xs font-bold text-[#ffd700]">
+                خدمات برمجة البوتات والتطوير الخاص
+              </span>
+            </div>
+
+            <div className="flex items-center gap-1.5">
+              <span className="w-2 h-2 rounded-full bg-[#22c55e] animate-pulse" title="متصل الآن" />
+              <span className="text-[10px] text-[#4ade80] font-medium font-mono">متاح للطلب</span>
+            </div>
+          </div>
+
+          {/* Value Highlights */}
+          <div className="space-y-1.5 text-right text-[11px] text-[#d6c59f] mb-3">
+            <div className="flex items-center gap-2">
+              <Zap className="w-3 h-3 text-[#ffd700] shrink-0" />
+              <span>تصميم وبرمجة بوتات تيليجرام وتداول وإشارات زمنية فوركس و OTC</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <ShieldCheck className="w-3 h-3 text-[#229ED9] shrink-0" />
+              <span>ربط قنوات VIP، خوارزميات ذكية، وخوادم سريعة بأقل تكلفة</span>
+            </div>
+          </div>
+
+          {/* Interactive Action Row */}
+          <div className="flex items-center gap-2">
             <a
               href="https://t.me/Qv_Dev"
               target="_blank"
               rel="noopener noreferrer"
-              title="تواصل مع المطور عبر تيليجرام @Qv_Dev"
-              className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-[#0a121c] hover:bg-[#121f2d] border border-[#229ED9]/60 hover:border-[#38bdf8] text-[#38bdf8] hover:text-white transition-all shadow-md group cursor-pointer active:scale-95"
+              className="flex-1 py-2 px-3 rounded-xl bg-gradient-to-r from-[#229ED9] to-[#1a7bb5] hover:brightness-110 text-white font-bold text-xs flex items-center justify-center gap-1.5 transition-all shadow-md group cursor-pointer active:scale-98"
             >
-              <div className="w-5 h-5 rounded-full bg-[#229ED9] text-white flex items-center justify-center shrink-0 shadow-sm group-hover:scale-110 transition-transform">
-                <svg viewBox="0 0 24 24" fill="currentColor" className="w-3 h-3 fill-current">
-                  <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm4.64 6.8c-.15 1.58-.8 5.42-1.13 7.19-.14.75-.42 1-.68 1.03-.58.05-1.02-.38-1.58-.75-.88-.58-1.38-.94-2.23-1.5-.99-.65-.35-1.01.22-1.59.15-.15 2.71-2.48 2.76-2.69.01-.03.01-.14-.07-.19-.08-.05-.19-.02-.27 0-.12.03-1.99 1.27-5.62 3.72-.53.36-1.01.54-1.44.53-.47-.01-1.38-.27-2.06-.49-.83-.27-1.49-.42-1.43-.88.03-.24.37-.49 1.02-.75 3.99-1.74 6.66-2.88 7.99-3.44 3.82-1.6 4.61-1.88 5.13-1.89.11 0 .37.03.54.17.14.12.18.28.2.45-.02.07-.02.13-.04.22z" />
-                </svg>
-              </div>
-              <span className="font-mono text-xs font-bold tracking-wider">@Qv_Dev</span>
-              <span className="w-2 h-2 rounded-full bg-[#22c55e] animate-pulse" title="متصل الآن" />
+              <Send className="w-3.5 h-3.5 group-hover:translate-x-0.5 transition-transform" />
+              <span>طلب بوت عبر تيليجرام</span>
             </a>
 
             <button
               type="button"
               onClick={handleCopyHandle}
-              className="p-1.5 rounded-full bg-[#140e06] hover:bg-[#22180a] border border-[#d4af37]/40 text-[#d4af37] hover:text-[#ffd700] transition-colors cursor-pointer"
+              className="py-2 px-3 rounded-xl bg-[#1b140a] hover:bg-[#281c0c] border border-[#d4af37]/40 text-[#ffd700] font-mono text-xs font-bold flex items-center gap-1.5 transition-colors cursor-pointer"
               title="نسخ المعرف"
             >
-              {copiedHandle ? <Check className="w-3.5 h-3.5 text-[#22c55e]" /> : <Copy className="w-3.5 h-3.5" />}
+              {copiedHandle ? (
+                <>
+                  <Check className="w-3.5 h-3.5 text-[#22c55e]" />
+                  <span className="text-[#22c55e]">تم النسخ</span>
+                </>
+              ) : (
+                <>
+                  <Copy className="w-3.5 h-3.5" />
+                  <span>@Qv_Dev</span>
+                </>
+              )}
             </button>
-          </div>
-        </div>
-
-        {/* Promotional Bot Creation Marquee Ticker */}
-        <div className="mb-5 relative overflow-hidden rounded-2xl bg-gradient-to-r from-[#140e06] via-[#1c1409] to-[#140e06] border border-[#d4af37]/35 py-2.5 shadow-[0_4px_20px_rgba(0,0,0,0.5)]">
-          <div className="absolute left-0 top-0 bottom-0 w-8 bg-gradient-to-r from-[#140e06] to-transparent z-10 pointer-events-none" />
-          <div className="absolute right-0 top-0 bottom-0 w-8 bg-gradient-to-l from-[#140e06] to-transparent z-10 pointer-events-none" />
-          
-          <div className="overflow-hidden whitespace-nowrap">
-            <div className="animate-ticker inline-flex items-center gap-8 px-4 text-xs font-medium text-[#fbf7ee]">
-              {/* First set */}
-              <a href="https://t.me/Qv_Dev" target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-2 hover:text-[#ffd700] transition-colors cursor-pointer">
-                <span className="text-[#ffd700] font-bold">⚡ خدمات إنشاء البوتات البرمجية وتطبيقات الأتمتة بأقل تكلفة وسرعة فائقة</span>
-                <span className="bg-[#229ED9]/20 text-[#38bdf8] px-2 py-0.5 rounded-md font-mono text-[11px] border border-[#229ED9]/30">تواصل: @Qv_Dev</span>
-              </a>
-              <span className="text-[#d4af37]/50">•</span>
-              <a href="https://t.me/Qv_Dev" target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-2 hover:text-[#ffd700] transition-colors cursor-pointer">
-                <span className="text-[#ffd700] font-bold">🤖 تصميم وبرمجة بوتات تليجرام، تداول، وإدارة صفقات احترافية</span>
-                <span className="bg-[#229ED9]/20 text-[#38bdf8] px-2 py-0.5 rounded-md font-mono text-[11px] border border-[#229ED9]/30">تيليجرام @Qv_Dev</span>
-              </a>
-              <span className="text-[#d4af37]/50">•</span>
-              <a href="https://t.me/Qv_Dev" target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-2 hover:text-[#ffd700] transition-colors cursor-pointer">
-                <span className="text-[#ffd700] font-bold">💎 أسعار تنافسية ودعم فني متكامل لجميع مشاريعك الرقمية</span>
-                <span className="bg-[#229ED9]/20 text-[#38bdf8] px-2 py-0.5 rounded-md font-mono text-[11px] border border-[#229ED9]/30">ابدأ الآن @Qv_Dev</span>
-              </a>
-
-              {/* Duplicate set for seamless infinite loop */}
-              <span className="text-[#d4af37]/50">•</span>
-              <a href="https://t.me/Qv_Dev" target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-2 hover:text-[#ffd700] transition-colors cursor-pointer">
-                <span className="text-[#ffd700] font-bold">⚡ خدمات إنشاء البوتات البرمجية وتطبيقات الأتمتة بأقل تكلفة وسرعة فائقة</span>
-                <span className="bg-[#229ED9]/20 text-[#38bdf8] px-2 py-0.5 rounded-md font-mono text-[11px] border border-[#229ED9]/30">تواصل: @Qv_Dev</span>
-              </a>
-              <span className="text-[#d4af37]/50">•</span>
-              <a href="https://t.me/Qv_Dev" target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-2 hover:text-[#ffd700] transition-colors cursor-pointer">
-                <span className="text-[#ffd700] font-bold">🤖 تصميم وبرمجة بوتات تليجرام، تداول، وإدارة صفقات احترافية</span>
-                <span className="bg-[#229ED9]/20 text-[#38bdf8] px-2 py-0.5 rounded-md font-mono text-[11px] border border-[#229ED9]/30">تيليجرام @Qv_Dev</span>
-              </a>
-              <span className="text-[#d4af37]/50">•</span>
-              <a href="https://t.me/Qv_Dev" target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-2 hover:text-[#ffd700] transition-colors cursor-pointer">
-                <span className="text-[#ffd700] font-bold">💎 أسعار تنافسية ودعم فني متكامل لجميع مشاريعك الرقمية</span>
-                <span className="bg-[#229ED9]/20 text-[#38bdf8] px-2 py-0.5 rounded-md font-mono text-[11px] border border-[#229ED9]/30">ابدأ الآن @Qv_Dev</span>
-              </a>
-            </div>
           </div>
         </div>
 
@@ -235,7 +225,7 @@ export const LoginView: React.FC<LoginViewProps> = ({
                 }}
                 disabled={secondsRemaining > 0 || loading}
                 placeholder="أدخل كلمة المرور أو كود الترخيص..."
-                className="w-full py-3.5 px-4 pr-11 pl-11 rounded-xl bg-[#090704] border border-[#d4af37]/30 text-white placeholder-[#786b51] focus:outline-none focus:border-[#ffd700] focus:ring-1 focus:ring-[#ffd700] text-center font-mono tracking-widest transition-all"
+                className="w-full py-3.5 px-4 pr-11 pl-11 rounded-xl bg-[#090704] border border-[#d4af37]/35 text-white placeholder-[#786b51] focus:outline-none focus:border-[#ffd700] focus:ring-1 focus:ring-[#ffd700] text-center font-mono tracking-widest transition-all"
                 autoFocus
                 required
               />
@@ -243,7 +233,7 @@ export const LoginView: React.FC<LoginViewProps> = ({
               <button
                 type="button"
                 onClick={() => setShowPassword(!showPassword)}
-                className="absolute left-3.5 top-1/2 -translate-y-1/2 text-[#d4af37]/70 hover:text-[#ffd700] p-1 transition-colors"
+                className="absolute left-3.5 top-1/2 -translate-y-1/2 text-[#d4af37]/70 hover:text-[#ffd700] p-1 transition-colors cursor-pointer"
                 title={showPassword ? 'إخفاء' : 'إظهار'}
               >
                 {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
@@ -275,52 +265,18 @@ export const LoginView: React.FC<LoginViewProps> = ({
             </div>
           )}
 
-          {/* Main Action Button Only - Zero Bypass */}
+          {/* Main Action Button */}
           <div className="pt-1">
             <button
               type="submit"
               disabled={secondsRemaining > 0 || loading || !password.trim()}
-              className="w-full py-3.5 px-4 rounded-xl font-bold text-sm bg-gradient-to-r from-[#ffd700] via-[#d4af37] to-[#b38914] text-[#080705] hover:brightness-110 active:scale-[0.99] transition-all shadow-[0_4px_20px_rgba(212,175,55,0.25)] flex items-center justify-center gap-2 cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
+              className="w-full py-3.5 px-4 rounded-xl font-bold text-sm bg-gradient-to-r from-[#ffd700] via-[#d4af37] to-[#b38914] text-[#080705] hover:brightness-110 active:scale-[0.99] transition-all shadow-[0_4px_25px_rgba(212,175,55,0.3)] flex items-center justify-center gap-2 cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
             >
               <Lock className="w-4 h-4" />
               <span>{loading ? 'جارٍ فك التشفير والتحقق...' : 'دخول عرين الصفقات الذهبية'}</span>
             </button>
           </div>
         </form>
-
-        {/* Moving Ticker Ribbon (شريط متحرك لإنشاء البوتات بأقل تكلفة) */}
-        <div className="mt-5 overflow-hidden rounded-xl bg-gradient-to-r from-[#171006] via-[#0d1622] to-[#171006] border border-[#229ED9]/40 py-2.5 shadow-md">
-          <div
-            className="animate-ticker flex items-center gap-8 whitespace-nowrap text-xs font-bold select-none cursor-pointer"
-            onClick={() => window.open('https://t.me/Qv_Dev', '_blank')}
-            title="اضغط للتواصل لإنشاء بوتات بأقل تكلفة @Qv_Dev"
-          >
-            <span className="flex items-center gap-2 text-[#ffd700]">
-              <span className="text-[#38bdf8]">⚡</span>
-              <span>إنشاء وبرمجة كافة بوتات التليجرام والتداول بأقل تكلفة وسرعة فائقة</span>
-              <span className="text-[#38bdf8] font-mono bg-[#229ED9]/20 px-2 py-0.5 rounded-md border border-[#229ED9]/30">@Qv_Dev</span>
-              <span className="text-[#a8956e]">· تواصل فوري</span>
-            </span>
-            <span className="flex items-center gap-2 text-[#38bdf8]">
-              <span>⚡</span>
-              <span className="text-[#ffd700]">لطلب وتطوير بوتات الصفقات والرد الآلي بأقل تكلفة</span>
-              <span className="text-[#ffd700] bg-[#ffd700]/15 px-2 py-0.5 rounded-md border border-[#ffd700]/30">تواصل الآن</span>
-              <span className="text-[#a8956e]">· دعم فوري</span>
-            </span>
-            <span className="flex items-center gap-2 text-[#ffd700]">
-              <span className="text-[#38bdf8]">⚡</span>
-              <span>إنشاء وبرمجة كافة بوتات التليجرام والتداول بأقل تكلفة وسرعة فائقة</span>
-              <span className="text-[#38bdf8] font-mono bg-[#229ED9]/20 px-2 py-0.5 rounded-md border border-[#229ED9]/30">@Qv_Dev</span>
-              <span className="text-[#a8956e]">· تواصل فوري</span>
-            </span>
-            <span className="flex items-center gap-2 text-[#38bdf8]">
-              <span>⚡</span>
-              <span className="text-[#ffd700]">لطلب وتطوير بوتات الصفقات والرد الآلي بأقل تكلفة</span>
-              <span className="text-[#ffd700] bg-[#ffd700]/15 px-2 py-0.5 rounded-md border border-[#ffd700]/30">تواصل الآن</span>
-              <span className="text-[#a8956e]">· دعم فوري</span>
-            </span>
-          </div>
-        </div>
       </div>
     </div>
   );

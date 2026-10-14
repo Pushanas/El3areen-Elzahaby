@@ -658,7 +658,7 @@ export default function App() {
               }`}
             >
               <Timer className="w-3.5 h-3.5 mb-0.5" />
-              <span className="text-[8px] leading-tight font-bold text-center">استراتيجية العرين الذهبي</span>
+              <span className="text-[9px] leading-tight font-bold">الاستراتيجيات</span>
             </button>
 
             {/* Tab 4: Table */}

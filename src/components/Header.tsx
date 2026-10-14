@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { Volume2, VolumeX, Lock, Clock, KeyRound } from 'lucide-react';
-import emblemImage from '../assets/images/areen_golden_emblem_1791233936752.jpg';
+import emblemImage from '../assets/images/areen_brand_logo_1792001509199.jpg';
 import { useSecretAdminTrigger } from '../hooks/useSecretAdminTrigger';
 
 interface HeaderProps {
@@ -46,7 +46,7 @@ export const Header: React.FC<HeaderProps> = ({
   }, []);
 
   return (
-    <header className="sticky top-0 z-40 bg-[#0c0905]/95 backdrop-blur-md border-b border-[#d4af37]/20 px-3.5 py-2.5">
+    <header className="sticky top-0 z-40 bg-[#0c0905]/95 backdrop-blur-md border-b border-[#d4af37]/25 px-3.5 py-2.5">
       <div className="flex items-center justify-between gap-2">
         {/* Brand Lockup (Secret 5-Tap Gateway for Admin Entrance) */}
         <div
@@ -56,23 +56,24 @@ export const Header: React.FC<HeaderProps> = ({
           className="flex items-center gap-2.5 cursor-pointer select-none group"
         >
           <div
-            className={`w-8 h-8 rounded-lg overflow-hidden border bg-[#1a140a] p-0.5 shrink-0 transition-all duration-300 ${
+            className={`w-9 h-9 rounded-xl overflow-hidden border bg-[#1a140a] p-0.5 shrink-0 transition-all duration-300 ${
               pulseActive
-                ? 'scale-110 border-[#ffd700] shadow-[0_0_20px_rgba(255,215,0,0.9)] ring-2 ring-[#ffd700]'
-                : 'border-[#d4af37]/60 shadow-[0_0_12px_rgba(212,175,55,0.25)]'
+                ? 'scale-110 border-[#ffd700] shadow-[0_0_25px_rgba(255,215,0,0.95)] ring-2 ring-[#ffd700]'
+                : 'border-[#d4af37] shadow-[0_0_15px_rgba(212,175,55,0.3)]'
             }`}
           >
             <img
               src={emblemImage}
               alt="شعار العرين الذهبي"
-              className="w-full h-full object-cover rounded-md pointer-events-none"
+              referrerPolicy="no-referrer"
+              className="w-full h-full object-cover rounded-lg pointer-events-none"
             />
           </div>
           <div>
             <div className="text-sm font-black tracking-tight text-[#ffd700] leading-none">
               العرين الذهبي
             </div>
-            <div className="text-[9px] text-[#9c8963] font-mono tracking-wider mt-0.5">
+            <div className="text-[9px] text-[#baa274] font-mono tracking-wider mt-0.5 font-bold">
               AL-AREEN VIP
             </div>
           </div>

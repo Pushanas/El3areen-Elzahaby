@@ -1,6 +1,7 @@
 import React from 'react';
-import { ArrowUpRight, ArrowDownRight, Clock, CheckCircle2, XCircle } from 'lucide-react';
+import { ArrowUpRight, ArrowDownRight, Clock, CheckCircle2, XCircle, Zap, Shield, Sparkles } from 'lucide-react';
 import { SignalItem, SignalResult } from '../types';
+import emblemImage from '../assets/images/areen_brand_logo_1792001509199.jpg';
 
 interface ActiveSignalCardProps {
   currentSignal: SignalItem | null;
@@ -19,15 +20,23 @@ export const ActiveSignalCard: React.FC<ActiveSignalCardProps> = ({
 }) => {
   if (!currentSignal) {
     return (
-      <div className="bg-gradient-to-b from-[#16120b] to-[#0c0905] border border-[#d4af37]/25 rounded-2xl p-5 text-center shadow-[0_10px_30px_rgba(0,0,0,0.5)]">
-        <div className="w-14 h-14 mx-auto rounded-2xl bg-[#221a0d] border border-[#d4af37]/30 flex items-center justify-center text-2xl mb-2.5 shadow-[0_0_15px_rgba(212,175,55,0.15)]">
-          🦁
+      <div className="bg-gradient-to-b from-[#18130b] via-[#120e08] to-[#0a0805] border border-[#d4af37]/35 rounded-3xl p-6 text-center shadow-[0_15px_40px_rgba(0,0,0,0.6)] relative overflow-hidden">
+        <div className="absolute top-0 right-1/2 translate-x-1/2 w-36 h-1 bg-gradient-to-r from-transparent via-[#ffd700] to-transparent opacity-80" />
+        
+        <div className="w-20 h-20 mx-auto rounded-2xl overflow-hidden border-2 border-[#d4af37] bg-[#1d160c] p-0.5 mb-3 shadow-[0_0_25px_rgba(212,175,55,0.35)]">
+          <img
+            src={emblemImage}
+            alt="العرين الذهبي"
+            referrerPolicy="no-referrer"
+            className="w-full h-full object-cover rounded-xl"
+          />
         </div>
-        <h3 className="text-base font-bold text-[#ffd700] mb-1">
-          عرين الصفقات الذهبية جاهز
+        
+        <h3 className="text-base font-black text-[#ffd700] mb-1 tracking-tight">
+          عرين الصفقات الذهبية جاهز للعمل
         </h3>
-        <p className="text-xs text-[#a3906a] leading-relaxed">
-          انتقل لتبويب "المولّد" بالأسفل وحدد الأزواج لتوليد الصفقات ومراقبة العد التنازلي اللحظي.
+        <p className="text-xs text-[#baa274] leading-relaxed max-w-xs mx-auto">
+          اختر تبويب "المولّد" أو "استراتيجية العرين الذهبي" لتوليد جدول الصفقات وبدء المراقبة اللحظية بدقة متناهية.
         </p>
       </div>
     );
