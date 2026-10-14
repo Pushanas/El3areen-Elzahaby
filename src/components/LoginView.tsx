@@ -72,6 +72,7 @@ export const LoginView: React.FC<LoginViewProps> = ({
       if (result.success) {
         setFailedAttempts(0);
         setLockedUntil(0);
+        window.dispatchEvent(new CustomEvent('areen:login_success'));
         onSuccess();
       } else {
         const nextFailed = failedAttempts + 1;

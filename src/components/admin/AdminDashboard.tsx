@@ -46,6 +46,18 @@ import {
   Server,
   Database,
   ExternalLink,
+  Crown,
+  Send,
+  MessageSquare,
+  UserCheck,
+  Shield,
+  Unlock,
+  RefreshCcw,
+  Wifi,
+  Edit3,
+  Save,
+  CheckCircle2,
+  XCircle,
 } from 'lucide-react';
 import { VisitorMap, type MapVisitorMarker } from './VisitorMap';
 
@@ -111,13 +123,38 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
   const [genNote, setGenNote] = useState<string>('');
   const [generatedResult, setGeneratedResult] = useState<{ batch: any; plainCodes: string[] } | null>(null);
 
-  // Visitors State
+  // Visitors Intelligence & Subscriber State
   const [allVisitors, setAllVisitors] = useState<any[]>([]);
   const [visitorsPage, setVisitorsPage] = useState<number>(1);
   const [visitorsTotalPages, setVisitorsTotalPages] = useState<number>(1);
   const [visitorsSearch, setVisitorsSearch] = useState<string>('');
   const [visitorsStatusFilter, setVisitorsStatusFilter] = useState<string>('all');
+  const [visitorsSortBy, setVisitorsSortBy] = useState<string>('lastSeen');
   const [autoRefreshVisitors, setAutoRefreshVisitors] = useState<boolean>(true);
+  const [visitorSummary, setVisitorSummary] = useState<{
+    total: number;
+    codeSubscribers: number;
+    activeNow: number;
+    masterUsers: number;
+    blocked: number;
+  }>({ total: 0, codeSubscribers: 0, activeNow: 0, masterUsers: 0, blocked: 0 });
+
+  // Targeted Message Modal State
+  const [messageTargetVisitor, setMessageTargetVisitor] = useState<any | null>(null);
+  const [targetedMessageText, setTargetedMessageText] = useState<string>('');
+  const [targetedMessageLevel, setTargetedMessageLevel] = useState<'vip' | 'warning' | 'alert' | 'info'>('vip');
+  const [sendingMessage, setSendingMessage] = useState<boolean>(false);
+
+  // Extend License Quick Modal State
+  const [extendTargetVisitor, setExtendTargetVisitor] = useState<any | null>(null);
+  const [extendHoursOption, setExtendHoursOption] = useState<number>(24);
+
+  // Deep Dossier Inspection Modal State
+  const [inspectedVisitor, setInspectedVisitor] = useState<any | null>(null);
+
+  // Editing Note State
+  const [editingNoteVisitorId, setEditingNoteVisitorId] = useState<string | null>(null);
+  const [editingNoteText, setEditingNoteText] = useState<string>('');
 
   // Broadcast State
   const [broadcastEnabled, setBroadcastEnabled] = useState<boolean>(false);
@@ -233,25 +270,33 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
     }
   }, [authFetch, codesPage, codesSearch, codesStatusFilter]);
 
-  // 4. Fetch All Visitors
+  // 4. Fetch All Visitors & Subscriber Intelligence
   const fetchAllVisitors = useCallback(async () => {
     try {
       const query = new URLSearchParams({
         page: String(visitorsPage),
-        limit: '15',
+        limit: '24',
         search: visitorsSearch,
         status: visitorsStatusFilter,
+        sortBy: visitorsSortBy,
       });
       const res = await authFetch(`/api/admin/visitors?${query.toString()}`);
       const data = await res.json();
       if (data.success) {
         setAllVisitors(data.visitors);
         setVisitorsTotalPages(data.totalPages);
+        setVisitorSummary({
+          total: data.total || 0,
+          codeSubscribers: data.totalCodeSubscribers || 0,
+          activeNow: data.totalActiveNow || 0,
+          masterUsers: data.totalMasterUsers || 0,
+          blocked: data.totalBlocked || 0,
+        });
       }
     } catch {
       // ignore
     }
-  }, [authFetch, visitorsPage, visitorsSearch, visitorsStatusFilter]);
+  }, [authFetch, visitorsPage, visitorsSearch, visitorsStatusFilter, visitorsSortBy]);
 
   // 5. Fetch Audit Logs
   const fetchAuditLogs = useCallback(async () => {
@@ -536,6 +581,182 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
     }
   };
 
+  // Remote Force Kickout Visitor Session
+  const handleKickoutVisitor = async (visitorId: string) => {
+    if (!window.confirm('هل تريد إنهاء وطرد جلسة هذا المشترك عن بعد فوراً؟ سيتم إخراجه لشاشة تسجيل الدخول.')) return;
+    try {
+      const res = await authFetch(`/api/admin/visitors/${visitorId}/kickout`, { method: 'POST' });
+      const data = await res.json();
+      if (data.success) {
+        showNotification('تم إرسال أمر الطرد الفوري للجهاز بنجاح!');
+        fetchAllVisitors();
+      } else {
+        showNotification(data.error || 'فشل تنفيذ أمر الطرد', true);
+      }
+    } catch {
+      showNotification('خطأ في الاتصال بالخادم', true);
+    }
+  };
+
+  // Reset Visitor Connected License Device Lock (Allow customer to switch phones)
+  const handleResetVisitorLicenseDevice = async (visitorId: string) => {
+    if (!window.confirm('هل تريد فك قفل الجهاز لهذا الكود والسماح للمشترك بربط هاتف جديد؟')) return;
+    try {
+      const res = await authFetch(`/api/admin/visitors/${visitorId}/reset-license-device`, { method: 'POST' });
+      const data = await res.json();
+      if (data.success) {
+        showNotification('تم فك قفل الهاتف للكود بنجاح! يمكن للمشترك تشغيله على جهاز آخر.');
+        fetchAllVisitors();
+      } else {
+        showNotification(data.error || 'فشل فك قفل الجهاز', true);
+      }
+    } catch {
+      showNotification('خطأ في الاتصال بالخادم', true);
+    }
+  };
+
+  // Quick Extend Visitor License Duration
+  const handleExtendVisitorLicense = async (visitorId: string, additionalMinutes: number, label: string) => {
+    try {
+      const res = await authFetch(`/api/admin/visitors/${visitorId}/extend-license`, {
+        method: 'POST',
+        body: JSON.stringify({ additionalMinutes }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        showNotification(`تم تمديد اشتراك المشترك بمقدار ${label} بنجاح!`);
+        fetchAllVisitors();
+        setExtendTargetVisitor(null);
+      } else {
+        showNotification(data.error || 'فشل تمديد الاشتراك', true);
+      }
+    } catch {
+      showNotification('خطأ في الاتصال بالخادم', true);
+    }
+  };
+
+  // Toggle Visitor License Status (Active / Suspended)
+  const handleToggleVisitorLicenseStatus = async (visitorId: string, currentStatus?: string) => {
+    const newStatus = currentStatus === 'suspended' ? 'active' : 'suspended';
+    const actionLabel = newStatus === 'active' ? 'إعادة التفعيل' : 'الإيقاف المؤقت';
+    if (!window.confirm(`هل أنت متأكد من [${actionLabel}] لاشتراك هذا المستخدم؟`)) return;
+    try {
+      const res = await authFetch(`/api/admin/visitors/${visitorId}/toggle-license-status`, {
+        method: 'POST',
+        body: JSON.stringify({ status: newStatus }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        showNotification(`تم ${actionLabel} للاشتراك بنجاح!`);
+        fetchAllVisitors();
+      } else {
+        showNotification(data.error || 'فشل تعديل حالة الاشتراك', true);
+      }
+    } catch {
+      showNotification('خطأ في الاتصال بالخادم', true);
+    }
+  };
+
+  // Revoke Visitor License Permanently & Kickout
+  const handleRevokeVisitorLicense = async (visitorId: string) => {
+    if (!window.confirm('تحذير: هل أنت متأكد من إلغاء كود الترخيص نهائياً وطرد المشترك فوراً من التطبيق؟')) return;
+    try {
+      const res = await authFetch(`/api/admin/visitors/${visitorId}/toggle-license-status`, {
+        method: 'POST',
+        body: JSON.stringify({ status: 'revoked' }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        showNotification('تم إلغاء الترخيص وطرد المشترك نهائياً!');
+        fetchAllVisitors();
+      } else {
+        showNotification(data.error || 'فشل إلغاء الترخيص', true);
+      }
+    } catch {
+      showNotification('خطأ في الاتصال بالخادم', true);
+    }
+  };
+
+  // Send Targeted Private Message Submit
+  const handleSendTargetedMessageSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!messageTargetVisitor || !targetedMessageText.trim()) return;
+    setSendingMessage(true);
+    try {
+      const res = await authFetch(`/api/admin/visitors/${messageTargetVisitor.id}/message`, {
+        method: 'POST',
+        body: JSON.stringify({
+          message: targetedMessageText.trim(),
+          level: targetedMessageLevel,
+        }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        showNotification('تم إرسال الرسالة الخاصة لهاتف المشترك بنجاح!');
+        setMessageTargetVisitor(null);
+        setTargetedMessageText('');
+        fetchAllVisitors();
+      } else {
+        showNotification(data.error || 'فشل إرسال الرسالة', true);
+      }
+    } catch {
+      showNotification('خطأ في الاتصال بالخادم', true);
+    } finally {
+      setSendingMessage(false);
+    }
+  };
+
+  // Save Visitor Note / Dossier Remark
+  const handleSaveVisitorNote = async (visitorId: string, note: string) => {
+    try {
+      const res = await authFetch(`/api/admin/visitors/${visitorId}/note`, {
+        method: 'POST',
+        body: JSON.stringify({ note }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        showNotification('تم حفظ ملاحظة العميل بنجاح');
+        setEditingNoteVisitorId(null);
+        fetchAllVisitors();
+      } else {
+        showNotification('فشل حفظ الملاحظة', true);
+      }
+    } catch {
+      showNotification('خطأ في الاتصال بالخادم', true);
+    }
+  };
+
+  // Arabic Date & Elapsed Time Formatters
+  const formatRelativeArabic = (dateStr?: string | null): string => {
+    if (!dateStr) return 'غير محدد';
+    const time = new Date(dateStr).getTime();
+    if (isNaN(time)) return 'غير محدد';
+    const diffSecs = Math.floor((Date.now() - time) / 1000);
+    if (diffSecs < 15) return 'الآن';
+    if (diffSecs < 60) return `منذ ${diffSecs} ثانية`;
+    const diffMins = Math.floor(diffSecs / 60);
+    if (diffMins < 60) return `منذ ${diffMins} دقيقة`;
+    const diffHours = Math.floor(diffMins / 60);
+    if (diffHours < 24) return `منذ ${diffHours} ساعة`;
+    const diffDays = Math.floor(diffHours / 24);
+    if (diffDays < 30) return `منذ ${diffDays} يوم`;
+    const diffMonths = Math.floor(diffDays / 30);
+    return `منذ ${diffMonths} شهر`;
+  };
+
+  const formatFullArabicDateTime = (dateStr?: string | null): string => {
+    if (!dateStr) return 'غير محدد';
+    const date = new Date(dateStr);
+    if (isNaN(date.getTime())) return 'غير محدد';
+    return date.toLocaleString('ar-EG', {
+      year: 'numeric',
+      month: 'short',
+      day: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: true,
+    });
+  };
   // Clear All Audit Logs
   const handleClearAuditLogs = async () => {
     if (!window.confirm('هل أنت متأكد من تفريغ وحذف سجل النشاطات الأمني بالكامل؟')) return;
@@ -858,7 +1079,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
               )}
             </button>
 
-            {/* 5. Visitors & Phone Dossier Tab */}
+            {/* 5. Visitors & Subscribers Intelligence Tab */}
             <button
               onClick={() => setActiveTab('visitors')}
               className={`w-full py-2.5 px-3 rounded-2xl text-xs font-bold flex items-center justify-between transition-all cursor-pointer whitespace-nowrap ${
@@ -867,13 +1088,20 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                   : 'text-[#8e7e60] hover:text-[#ffd700] hover:bg-[#191209]'
               }`}
             >
-              <div className="flex items-center gap-2.5">
-                <Smartphone className="w-4 h-4 text-[#38bdf8]" />
-                <span>سجل الهواتف والأجهزة</span>
+              <div className="flex items-center gap-2">
+                <Crown className="w-4 h-4 text-[#ffd700]" />
+                <span>مركز المشتركين والأجهزة</span>
               </div>
-              <span className="text-[10px] px-2 py-0.5 rounded-full bg-[#182012] font-mono text-[#4ade80] border border-[#22c55e]/30">
-                {stats?.totalVisitors ?? 0} جهاز
-              </span>
+              <div className="flex items-center gap-1 font-mono text-[10px]">
+                {stats?.codeSubscribers ? (
+                  <span className="px-1.5 py-0.5 rounded-full bg-[#30210a] text-[#ffd700] border border-[#ffd700]/40 font-bold" title="مشتركون بكود">
+                    👑 {stats.codeSubscribers}
+                  </span>
+                ) : null}
+                <span className="px-2 py-0.5 rounded-full bg-[#182012] text-[#4ade80] border border-[#22c55e]/30">
+                  {stats?.totalVisitors ?? 0}
+                </span>
+              </div>
             </button>
 
             {/* 6. Emergency Broadcast Ribbon Tab */}
@@ -1880,14 +2108,154 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
             )}
 
             {/* ======================================================== */}
-            {/* TAB 5: VISITORS & PHONE DOSSIER                         */}
+            {/* TAB 5: VISITORS & SUBSCRIBERS INTELLIGENCE CENTER        */}
             {/* ======================================================== */}
             {activeTab === 'visitors' && (
               <div className="space-y-4 animate-fadeIn">
-                {/* Search Bar */}
-                <div className="bg-[#0e0a05] border border-[#d4af37]/25 rounded-2xl p-3 sm:p-4 flex flex-wrap items-center justify-between gap-3">
-                  <div className="flex items-center gap-2 flex-1 min-w-[260px]">
-                    <div className="relative flex-1">
+                {/* 1. TOP INTELLIGENCE KPI HUD BAR */}
+                <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2.5">
+                  {/* Code Subscribers Tile */}
+                  <div
+                    onClick={() => {
+                      setVisitorsStatusFilter('code_registered');
+                      setVisitorsPage(1);
+                    }}
+                    className={`p-3.5 rounded-2xl border transition-all cursor-pointer flex flex-col justify-between shadow-md ${
+                      visitorsStatusFilter === 'code_registered'
+                        ? 'bg-gradient-to-br from-[#2a1d08] to-[#171005] border-[#ffd700] ring-1 ring-[#ffd700]'
+                        : 'bg-gradient-to-br from-[#1a1207] to-[#0e0904] border-[#d4af37]/35 hover:border-[#ffd700]'
+                    }`}
+                  >
+                    <div className="flex items-center justify-between">
+                      <span className="text-[11px] font-bold text-[#ffd700] flex items-center gap-1.5">
+                        <Crown className="w-3.5 h-3.5" />
+                        <span>المشتركون بالأكواد</span>
+                      </span>
+                      <span className="w-2 h-2 rounded-full bg-[#ffd700]" />
+                    </div>
+                    <div className="mt-2 flex items-baseline justify-between">
+                      <span className="text-2xl font-black text-white font-mono">
+                        {visitorSummary.codeSubscribers}
+                      </span>
+                      <span className="text-[10px] text-[#d4af37]">مشترك VIP</span>
+                    </div>
+                  </div>
+
+                  {/* Online Now Tile */}
+                  <div
+                    onClick={() => {
+                      setVisitorsStatusFilter('active');
+                      setVisitorsPage(1);
+                    }}
+                    className={`p-3.5 rounded-2xl border transition-all cursor-pointer flex flex-col justify-between shadow-md ${
+                      visitorsStatusFilter === 'active'
+                        ? 'bg-gradient-to-br from-[#122414] to-[#0a140b] border-[#22c55e] ring-1 ring-[#22c55e]'
+                        : 'bg-gradient-to-br from-[#0e1a10] to-[#08100a] border-[#22c55e]/35 hover:border-[#22c55e]'
+                    }`}
+                  >
+                    <div className="flex items-center justify-between">
+                      <span className="text-[11px] font-bold text-[#86efac] flex items-center gap-1.5">
+                        <Radio className="w-3.5 h-3.5 text-[#22c55e] animate-pulse" />
+                        <span>المتصلون بالرادار</span>
+                      </span>
+                      <span className="w-2 h-2 rounded-full bg-[#22c55e] animate-ping" />
+                    </div>
+                    <div className="mt-2 flex items-baseline justify-between">
+                      <span className="text-2xl font-black text-white font-mono">
+                        {visitorSummary.activeNow}
+                      </span>
+                      <span className="text-[10px] text-[#4ade80]">متصل الآن</span>
+                    </div>
+                  </div>
+
+                  {/* Total Devices Tracked */}
+                  <div
+                    onClick={() => {
+                      setVisitorsStatusFilter('all');
+                      setVisitorsPage(1);
+                    }}
+                    className={`p-3.5 rounded-2xl border transition-all cursor-pointer flex flex-col justify-between shadow-md ${
+                      visitorsStatusFilter === 'all'
+                        ? 'bg-gradient-to-br from-[#1e1b12] to-[#100e09] border-[#d4af37] ring-1 ring-[#d4af37]'
+                        : 'bg-gradient-to-br from-[#120f0a] to-[#0a0805] border-[#d4af37]/25 hover:border-[#d4af37]'
+                    }`}
+                  >
+                    <div className="flex items-center justify-between">
+                      <span className="text-[11px] font-bold text-[#cfb780] flex items-center gap-1.5">
+                        <Smartphone className="w-3.5 h-3.5 text-[#38bdf8]" />
+                        <span>إجمالي الأجهزة</span>
+                      </span>
+                      <Users className="w-3.5 h-3.5 text-[#8e7e60]" />
+                    </div>
+                    <div className="mt-2 flex items-baseline justify-between">
+                      <span className="text-2xl font-black text-white font-mono">
+                        {visitorSummary.total}
+                      </span>
+                      <span className="text-[10px] text-[#8e7e60]">جهاز مرصود</span>
+                    </div>
+                  </div>
+
+                  {/* Master Key Users */}
+                  <div
+                    onClick={() => {
+                      setVisitorsStatusFilter('master_vault');
+                      setVisitorsPage(1);
+                    }}
+                    className={`p-3.5 rounded-2xl border transition-all cursor-pointer flex flex-col justify-between shadow-md ${
+                      visitorsStatusFilter === 'master_vault'
+                        ? 'bg-gradient-to-br from-[#24172c] to-[#130c18] border-[#c084fc] ring-1 ring-[#c084fc]'
+                        : 'bg-gradient-to-br from-[#170e1c] to-[#0d0710] border-[#a855f7]/30 hover:border-[#c084fc]'
+                    }`}
+                  >
+                    <div className="flex items-center justify-between">
+                      <span className="text-[11px] font-bold text-[#e9d5ff] flex items-center gap-1.5">
+                        <Key className="w-3.5 h-3.5 text-[#c084fc]" />
+                        <span>الرمز الموحد</span>
+                      </span>
+                      <Lock className="w-3.5 h-3.5 text-[#a855f7]" />
+                    </div>
+                    <div className="mt-2 flex items-baseline justify-between">
+                      <span className="text-2xl font-black text-white font-mono">
+                        {visitorSummary.masterUsers}
+                      </span>
+                      <span className="text-[10px] text-[#c084fc]">جلسات رئيسية</span>
+                    </div>
+                  </div>
+
+                  {/* Blocked Devices */}
+                  <div
+                    onClick={() => {
+                      setVisitorsStatusFilter('blocked');
+                      setVisitorsPage(1);
+                    }}
+                    className={`col-span-2 sm:col-span-1 p-3.5 rounded-2xl border transition-all cursor-pointer flex flex-col justify-between shadow-md ${
+                      visitorsStatusFilter === 'blocked'
+                        ? 'bg-gradient-to-br from-[#301212] to-[#1c0808] border-[#ef4444] ring-1 ring-[#ef4444]'
+                        : 'bg-gradient-to-br from-[#1c0a0a] to-[#0f0505] border-[#ef4444]/30 hover:border-[#ef4444]'
+                    }`}
+                  >
+                    <div className="flex items-center justify-between">
+                      <span className="text-[11px] font-bold text-[#fca5a5] flex items-center gap-1.5">
+                        <ShieldAlert className="w-3.5 h-3.5 text-[#ef4444]" />
+                        <span>أجهزة محظورة</span>
+                      </span>
+                      <span className="w-2 h-2 rounded-full bg-[#ef4444]" />
+                    </div>
+                    <div className="mt-2 flex items-baseline justify-between">
+                      <span className="text-2xl font-black text-white font-mono">
+                        {visitorSummary.blocked}
+                      </span>
+                      <span className="text-[10px] text-[#f87171]">مقيد الوصول</span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* 2. ADVANCED SEARCH, FILTER TABS & SORTING */}
+                <div className="bg-[#0e0a05] border border-[#d4af37]/25 rounded-2xl p-3 sm:p-4 space-y-3">
+                  {/* Top Bar: Search + Auto-refresh */}
+                  <div className="flex flex-wrap items-center justify-between gap-2.5">
+                    {/* Search Input */}
+                    <div className="relative flex-1 min-w-[240px]">
                       <Search className="w-4 h-4 text-[#8e7e60] absolute right-3 top-1/2 -translate-y-1/2" />
                       <input
                         type="text"
@@ -1896,157 +2264,572 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                           setVisitorsSearch(e.target.value);
                           setVisitorsPage(1);
                         }}
-                        placeholder="ابحث بالـ IP، المدينة، أو موديل الهاتف..."
+                        placeholder="ابحث بكود الترخيص، الـ IP، المدينة، موديل الهاتف، أو ملاحظة العميل..."
                         className="w-full py-2 pr-9 pl-3 rounded-xl bg-[#140e07] border border-[#d4af37]/25 text-white text-xs placeholder:text-[#6a5b41] focus:outline-none focus:border-[#ffd700]"
                       />
                     </div>
 
-                    <select
-                      value={visitorsStatusFilter}
-                      onChange={(e) => {
-                        setVisitorsStatusFilter(e.target.value);
-                        setVisitorsPage(1);
-                      }}
-                      className="py-2 px-3 rounded-xl bg-[#140e07] border border-[#d4af37]/25 text-white text-xs focus:outline-none focus:border-[#ffd700]"
-                    >
-                      <option value="all">جميع الزوار</option>
-                      <option value="active">النشطون الآن فقط</option>
-                      <option value="inactive">غير متصلين</option>
-                    </select>
+                    {/* Sort Dropdown */}
+                    <div className="flex items-center gap-2">
+                      <span className="text-[11px] text-[#8e7e60] whitespace-nowrap hidden sm:inline">ترتيب حسب:</span>
+                      <select
+                        value={visitorsSortBy}
+                        onChange={(e) => {
+                          setVisitorsSortBy(e.target.value);
+                          setVisitorsPage(1);
+                        }}
+                        className="py-2 px-3 rounded-xl bg-[#140e07] border border-[#d4af37]/30 text-white text-xs focus:outline-none focus:border-[#ffd700]"
+                      >
+                        <option value="lastSeen">🕒 آخر ظهور (الأحدث أولاً)</option>
+                        <option value="firstSeen">⏳ أول ظهور (الأحدث أولاً)</option>
+                        <option value="firstSeenOldest">📅 أول ظهور (الأقدم أولاً)</option>
+                        <option value="visits">🔄 الأكثر زيارة وجلسات</option>
+                        <option value="status">🟢 المتصلون الآن أولاً</option>
+                      </select>
+
+                      {/* Auto-Refresh Toggle */}
+                      <button
+                        type="button"
+                        onClick={() => setAutoRefreshVisitors(!autoRefreshVisitors)}
+                        className={`py-2 px-3 rounded-xl text-xs font-bold border transition-all cursor-pointer flex items-center gap-1.5 ${
+                          autoRefreshVisitors
+                            ? 'bg-[#142617] text-[#4ade80] border-[#22c55e]/40 shadow-[0_0_12px_rgba(34,197,94,0.2)]'
+                            : 'bg-[#140e07] text-[#8e7e60] border-[#291e0d]'
+                        }`}
+                        title="تحديث استخباراتي لحظي كل 15 ثانية"
+                      >
+                        <Radio className={`w-3.5 h-3.5 ${autoRefreshVisitors ? 'animate-pulse text-[#4ade80]' : ''}`} />
+                        <span className="hidden sm:inline">رصد لحظي</span>
+                      </button>
+
+                      {/* Refresh Button */}
+                      <button
+                        type="button"
+                        onClick={() => fetchAllVisitors()}
+                        className="p-2 rounded-xl bg-[#140e07] hover:bg-[#20180c] text-[#ffd700] border border-[#d4af37]/30 transition-colors"
+                        title="تحديث فوري"
+                      >
+                        <RefreshCw className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
                   </div>
 
-                  <div className="flex items-center gap-2">
-                    <button
-                      type="button"
-                      onClick={() => setAutoRefreshVisitors(!autoRefreshVisitors)}
-                      className={`py-1.5 px-3 rounded-xl text-xs font-bold border transition-all cursor-pointer flex items-center gap-1.5 ${
-                        autoRefreshVisitors
-                          ? 'bg-[#142617] text-[#4ade80] border-[#22c55e]/40'
-                          : 'bg-[#140e07] text-[#8e7e60] border-[#291e0d]'
-                      }`}
-                    >
-                      <Radio className={`w-3.5 h-3.5 ${autoRefreshVisitors ? 'animate-pulse text-[#4ade80]' : ''}`} />
-                      <span>تحديث لحظي تلقائي</span>
-                    </button>
+                  {/* Filter Pills */}
+                  <div className="flex items-center gap-1.5 overflow-x-auto pb-1 text-xs">
+                    {[
+                      { key: 'all', label: '🌟 جميع الأجهزة' },
+                      { key: 'code_registered', label: `👑 المشتركون بكود (${visitorSummary.codeSubscribers})` },
+                      { key: 'active', label: `🟢 نشطون الآن (${visitorSummary.activeNow})` },
+                      { key: 'master_vault', label: `🔑 رمز رئيسي (${visitorSummary.masterUsers})` },
+                      { key: 'guest', label: '👤 زوار غير مسجلين' },
+                      { key: 'blocked', label: `🚫 المحظورون (${visitorSummary.blocked})` },
+                    ].map((tab) => (
+                      <button
+                        key={tab.key}
+                        type="button"
+                        onClick={() => {
+                          setVisitorsStatusFilter(tab.key);
+                          setVisitorsPage(1);
+                        }}
+                        className={`py-1.5 px-3 rounded-xl font-bold whitespace-nowrap border transition-all cursor-pointer ${
+                          visitorsStatusFilter === tab.key
+                            ? 'bg-gradient-to-r from-[#ffd700] to-[#b38f26] text-black border-[#ffd700] shadow-[0_0_12px_rgba(255,215,0,0.3)] font-black'
+                            : 'bg-[#140e07] text-[#cfb780] border-[#d4af37]/20 hover:border-[#ffd700]/50'
+                        }`}
+                      >
+                        {tab.label}
+                      </button>
+                    ))}
                   </div>
                 </div>
 
-                {/* Visitor Cards Grid */}
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3.5">
+                {/* 3. VISITOR & SUBSCRIBER INTELLIGENCE CARDS */}
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                   {allVisitors.map((v) => {
+                    const isCodeSubscriber =
+                      v.authType === 'license_code' ||
+                      Boolean(v.activeCodeMasked && v.activeCodeMasked !== '👑 رمز رئيسي موحد');
+                    const isMasterVault = v.authType === 'master_vault';
                     const hasGps = Boolean(v.gpsLocation && typeof v.gpsLocation.latitude === 'number');
                     const lat = hasGps ? v.gpsLocation.latitude : v.ipLocation?.latitude || 30.0444;
                     const lng = hasGps ? v.gpsLocation.longitude : v.ipLocation?.longitude || 31.2357;
+                    const isRevealed = Boolean(v.linkedCode?.id && revealedCodes[v.linkedCode.id]);
 
                     return (
                       <div
                         key={v.id}
-                        className="bg-[#0e0a05] border border-[#d4af37]/25 hover:border-[#ffd700]/50 rounded-2xl p-4 space-y-3 transition-all shadow-md relative overflow-hidden"
+                        className={`rounded-2xl p-4 space-y-3.5 transition-all shadow-lg relative overflow-hidden flex flex-col justify-between ${
+                          isCodeSubscriber
+                            ? 'bg-gradient-to-b from-[#1b1408] via-[#100d07] to-[#090704] border-2 border-[#ffd700]/70 shadow-[0_0_25px_rgba(255,215,0,0.12)]'
+                            : isMasterVault
+                            ? 'bg-gradient-to-b from-[#150f1c] via-[#0d0912] to-[#07050a] border border-[#a855f7]/40 shadow-[0_0_15px_rgba(168,85,247,0.1)]'
+                            : 'bg-[#0e0a05] border border-[#d4af37]/25 hover:border-[#d4af37]/60'
+                        }`}
                       >
-                        {/* Top: Country Flag, City, Status */}
-                        <div className="flex items-start justify-between gap-2 border-b border-[#d4af37]/15 pb-2.5">
-                          <div className="flex items-center gap-2.5">
-                            <span className="text-2xl">{v.flag || '🌐'}</span>
-                            <div>
-                              <h4 className="text-xs font-bold text-white flex items-center gap-1.5">
-                                <span>{v.city || 'المدينة'}</span>
-                                <span className="text-[11px] text-[#ffd700]">· {v.country || 'الدولة'}</span>
-                              </h4>
-                              <span className="text-[11px] font-mono text-[#8e7e60] block select-all">
-                                {v.ip}
+                        {/* Top Ambient Gold Rim for Code Subscribers */}
+                        {isCodeSubscriber && (
+                          <div className="absolute top-0 right-0 left-0 h-1 bg-gradient-to-r from-transparent via-[#ffd700] to-transparent" />
+                        )}
+
+                        <div className="space-y-3">
+                          {/* Header: Flag, City, IP, Status & Auth Badge */}
+                          <div className="flex items-start justify-between gap-2 border-b border-[#d4af37]/15 pb-2.5">
+                            <div className="flex items-center gap-2.5">
+                              <span className="text-2xl select-none" title={v.country || 'الدولة'}>
+                                {v.flag || '🌐'}
                               </span>
+                              <div>
+                                <h4 className="text-xs font-bold text-white flex items-center gap-1.5">
+                                  <span>{v.city || 'المدينة'}</span>
+                                  <span className="text-[11px] text-[#ffd700]">· {v.country || 'الدولة'}</span>
+                                </h4>
+                                <div className="flex items-center gap-1 mt-0.5">
+                                  <span className="text-[11px] font-mono text-[#8e7e60] select-all">
+                                    {v.ip}
+                                  </span>
+                                  <button
+                                    type="button"
+                                    onClick={() => copyToClipboard(v.ip, `ip_${v.id}`)}
+                                    className="text-[#8e7e60] hover:text-[#ffd700] cursor-pointer"
+                                    title="نسخ IP"
+                                  >
+                                    {copiedId === `ip_${v.id}` ? <Check className="w-3 h-3 text-[#22c55e]" /> : <Copy className="w-3 h-3" />}
+                                  </button>
+                                </div>
+                              </div>
                             </div>
-                          </div>
 
-                          <span
-                            className={`px-2 py-0.5 rounded-full text-[10px] font-bold border flex items-center gap-1 ${
-                              v.isActive
-                                ? 'bg-[#183318] text-[#4ade80] border-[#22c55e]/40'
-                                : 'bg-[#1a140a] text-[#8e7e60] border-[#312513]'
-                            }`}
-                          >
-                            <span className={`w-1.5 h-1.5 rounded-full ${v.isActive ? 'bg-[#22c55e] animate-ping' : 'bg-[#6b5a3e]'}`} />
-                            <span>{v.isActive ? 'نشط الآن' : 'غير متصل'}</span>
-                          </span>
-                        </div>
+                            <div className="flex flex-col items-end gap-1">
+                              {/* Online / Offline status */}
+                              <span
+                                className={`px-2 py-0.5 rounded-full text-[10px] font-bold border flex items-center gap-1 ${
+                                  v.isActive
+                                    ? 'bg-[#152e1b] text-[#4ade80] border-[#22c55e]/50'
+                                    : 'bg-[#1a140a] text-[#8e7e60] border-[#312513]'
+                                }`}
+                              >
+                                <span
+                                  className={`w-1.5 h-1.5 rounded-full ${
+                                    v.isActive ? 'bg-[#22c55e] animate-ping' : 'bg-[#6b5a3e]'
+                                  }`}
+                                />
+                                <span>{v.isActive ? 'نشط الآن' : 'غير متصل'}</span>
+                              </span>
 
-                        {/* Phone Model & OS */}
-                        <div className="grid grid-cols-2 gap-2 text-xs">
-                          <div className="bg-[#140e07] border border-[#d4af37]/15 rounded-xl p-2">
-                            <span className="text-[10px] text-[#8e7e60] block mb-0.5">الهاتف المرصود</span>
-                            <span className="font-bold text-white block text-[11px] truncate" title={v.device?.model || 'هاتف ذكي'}>
-                              {v.device?.model || 'هاتف ذكي'}
-                            </span>
-                            <span className="text-[10px] text-[#cfb780] font-mono block">
-                              {v.device?.os || 'OS'}
-                            </span>
-                          </div>
-
-                          <div className="bg-[#140e07] border border-[#d4af37]/15 rounded-xl p-2">
-                            <span className="text-[10px] text-[#8e7e60] block mb-0.5">البطارية والمزود</span>
-                            <div className="flex items-center gap-1 text-[11px] font-mono font-bold text-white">
-                              <Battery className="w-3.5 h-3.5 text-[#22c55e]" />
-                              <span>{typeof v.device?.batteryLevel === 'number' ? `${v.device.batteryLevel}%` : 'متاح'}</span>
-                              {v.device?.isCharging && (
-                                <Zap className="w-3 h-3 text-[#ffd700] animate-bounce" />
+                              {/* Auth Badge */}
+                              {isCodeSubscriber ? (
+                                <span className="px-2 py-0.5 rounded-md text-[10px] font-black bg-gradient-to-r from-[#ffd700] to-[#b38f26] text-black shadow-xs flex items-center gap-1">
+                                  <Crown className="w-3 h-3" />
+                                  <span>مشترك بكود ترخيص</span>
+                                </span>
+                              ) : isMasterVault ? (
+                                <span className="px-2 py-0.5 rounded-md text-[10px] font-bold bg-[#291738] text-[#d8b4fe] border border-[#a855f7]/40 flex items-center gap-1">
+                                  <Key className="w-3 h-3 text-[#c084fc]" />
+                                  <span>رمز رئيسي</span>
+                                </span>
+                              ) : (
+                                <span className="px-1.5 py-0.5 rounded-md text-[9px] text-[#8e7e60] bg-[#140e07] border border-[#2e2312]">
+                                  زائر غير مسجل
+                                </span>
                               )}
                             </div>
-                            <span className="text-[10px] text-[#cfb780] block truncate">
-                              {v.isp || 'مزود الإنترنت'}
+                          </div>
+
+                          {/* ============================================== */}
+                          {/* PROMINENT FIRST SEEN & LAST SEEN TRACKING BOX  */}
+                          {/* ============================================== */}
+                          <div className="grid grid-cols-2 gap-2 text-xs">
+                            {/* FIRST SEEN (أول ظهور) */}
+                            <div className="bg-[#140e07] border border-[#d4af37]/25 rounded-xl p-2.5 relative">
+                              <div className="flex items-center justify-between text-[10px] text-[#cfb780] font-bold mb-1">
+                                <span className="flex items-center gap-1 text-[#ffd700]">
+                                  <Calendar className="w-3 h-3" />
+                                  <span>أول ظهور</span>
+                                </span>
+                                <span className="text-[10px] px-1.5 py-0.2 rounded bg-black/40 font-sans text-[#cfb780]">
+                                  {formatRelativeArabic(v.firstSeenAt)}
+                                </span>
+                              </div>
+                              <div className="font-mono text-[11px] text-white font-bold tracking-tight">
+                                {formatFullArabicDateTime(v.firstSeenAt)}
+                              </div>
+                            </div>
+
+                            {/* LAST SEEN (آخر ظهور) */}
+                            <div className="bg-[#140e07] border border-[#d4af37]/25 rounded-xl p-2.5 relative">
+                              <div className="flex items-center justify-between text-[10px] text-[#cfb780] font-bold mb-1">
+                                <span className="flex items-center gap-1 text-[#38bdf8]">
+                                  <Clock className="w-3 h-3" />
+                                  <span>آخر ظهور</span>
+                                </span>
+                                <span
+                                  className={`text-[10px] px-1.5 py-0.2 rounded font-sans font-bold ${
+                                    v.isActive ? 'bg-[#152e1b] text-[#4ade80]' : 'bg-black/40 text-[#8e7e60]'
+                                  }`}
+                                >
+                                  {v.isActive ? '🟢 الآن' : formatRelativeArabic(v.lastSeenAt)}
+                                </span>
+                              </div>
+                              <div className="font-mono text-[11px] text-white font-bold tracking-tight">
+                                {formatFullArabicDateTime(v.lastSeenAt)}
+                              </div>
+                            </div>
+                          </div>
+
+                          {/* Sessions Count & Last Page Strip */}
+                          <div className="flex items-center justify-between text-[11px] text-[#8e7e60] bg-[#090704] px-2.5 py-1.5 rounded-lg border border-[#d4af37]/10 font-mono">
+                            <span className="flex items-center gap-1 text-[#cfb780]">
+                              <Activity className="w-3 h-3 text-[#ffd700]" />
+                              <span>إجمالي الزيارات: <b className="text-white">{v.visitCount || 1}</b> جلسة</span>
+                            </span>
+                            <span className="text-[10px] text-[#8e7e60] truncate max-w-[140px]" title={v.lastPage}>
+                              الصفحة: <b className="text-[#38bdf8]">{v.lastPage || '/'}</b>
                             </span>
                           </div>
-                        </div>
 
-                        {/* GPS Location & Map Pin */}
-                        <div className="bg-[#140e07] border border-[#d4af37]/15 rounded-xl p-2 flex items-center justify-between text-xs">
-                          <div className="flex items-center gap-1.5">
-                            <MapPin className={`w-3.5 h-3.5 ${hasGps ? 'text-[#22c55e]' : 'text-[#eab308]'}`} />
-                            <div>
-                              <span className="font-mono text-[11px] text-[#ffd700]">
-                                {lat.toFixed(4)}, {lng.toFixed(4)}
+                          {/* ======================================================= */}
+                          {/* DEDICATED SUBSCRIBER CODE CARD (FOR CODE-REGISTERED)     */}
+                          {/* ======================================================= */}
+                          {isCodeSubscriber && (
+                            <div className="bg-gradient-to-br from-[#231809] to-[#120d05] border-2 border-[#ffd700]/50 rounded-xl p-3 space-y-2.5 shadow-inner">
+                              <div className="flex items-center justify-between border-b border-[#d4af37]/25 pb-1.5">
+                                <span className="text-[11px] font-bold text-[#ffd700] flex items-center gap-1.5">
+                                  <Key className="w-3.5 h-3.5" />
+                                  <span>بيانات كود الترخيص المشترك به</span>
+                                </span>
+
+                                <span
+                                  className={`px-2 py-0.5 rounded-full text-[10px] font-bold border ${
+                                    v.licenseStatus === 'active' || v.linkedCode?.status === 'active'
+                                      ? 'bg-[#152e1b] text-[#4ade80] border-[#22c55e]/40'
+                                      : v.licenseStatus === 'suspended' || v.linkedCode?.status === 'suspended'
+                                      ? 'bg-[#33220a] text-[#fbbf24] border-[#f59e0b]/40'
+                                      : 'bg-[#331111] text-[#f87171] border-[#ef4444]/40'
+                                  }`}
+                                >
+                                  {v.licenseStatus === 'active' || v.linkedCode?.status === 'active'
+                                    ? 'سارٍ ونشط'
+                                    : v.licenseStatus === 'suspended' || v.linkedCode?.status === 'suspended'
+                                    ? 'موقوف مؤقتاً'
+                                    : 'منتهي الصلاحية'}
+                                </span>
+                              </div>
+
+                              {/* Code Text with Reveal & Copy */}
+                              <div className="flex items-center justify-between bg-black/60 border border-[#d4af37]/30 px-3 py-1.5 rounded-lg font-mono text-xs">
+                                <span className="font-bold text-[#ffd700] tracking-wider select-all">
+                                  {isRevealed
+                                    ? revealedCodes[v.linkedCode.id]
+                                    : v.linkedCode?.plainCode || v.activeCodeMasked || v.linkedCode?.masked || 'AREEN-****'}
+                                </span>
+
+                                <div className="flex items-center gap-1.5">
+                                  {v.linkedCode?.id && (
+                                    <button
+                                      type="button"
+                                      onClick={() => handleRevealCode(v.linkedCode.id)}
+                                      className="text-[#8e7e60] hover:text-[#ffd700] transition-colors p-1"
+                                      title={isRevealed ? 'إخفاء' : 'كشف النص الكامل'}
+                                    >
+                                      {isRevealed ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
+                                    </button>
+                                  )}
+
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      const codeToCopy = isRevealed
+                                        ? revealedCodes[v.linkedCode.id]
+                                        : v.linkedCode?.plainCode || v.activeCodeMasked;
+                                      copyToClipboard(codeToCopy || '', `code_${v.id}`);
+                                      showNotification('تم نسخ كود المشترك للحافظة');
+                                    }}
+                                    className="text-[#8e7e60] hover:text-[#ffd700] transition-colors p-1"
+                                    title="نسخ الكود"
+                                  >
+                                    {copiedId === `code_${v.id}` ? (
+                                      <Check className="w-3.5 h-3.5 text-[#22c55e]" />
+                                    ) : (
+                                      <Copy className="w-3.5 h-3.5" />
+                                    )}
+                                  </button>
+                                </div>
+                              </div>
+
+                              {/* License Duration, Remaining Time & Device Lock Status */}
+                              <div className="grid grid-cols-2 gap-2 text-[10px]">
+                                <div>
+                                  <span className="text-[#8e7e60] block">مدة الباقة:</span>
+                                  <span className="font-bold text-white font-mono">
+                                    {v.licenseDuration || v.linkedCode?.durationType || '24h'}
+                                    {v.linkedCode?.batchName ? ` (${v.linkedCode.batchName})` : ''}
+                                  </span>
+                                </div>
+
+                                <div>
+                                  <span className="text-[#8e7e60] block">الوقت المتبقي:</span>
+                                  <span className="font-bold text-[#4ade80] font-mono">
+                                    {v.linkedCode?.remainingMinutes && v.linkedCode.remainingMinutes > 0
+                                      ? `${Math.floor(v.linkedCode.remainingMinutes / 60)} س و ${v.linkedCode.remainingMinutes % 60} د`
+                                      : v.licenseExpiresAt
+                                      ? formatRelativeArabic(v.licenseExpiresAt)
+                                      : 'مفتوح / غير محدد'}
+                                  </span>
+                                </div>
+                              </div>
+
+                              {/* Device Lock Info */}
+                              <div className="flex items-center justify-between text-[10px] text-[#cfb780] bg-[#140e07] p-2 rounded-lg border border-[#d4af37]/20">
+                                <span className="flex items-center gap-1">
+                                  <Lock className="w-3 h-3 text-[#ffd700]" />
+                                  <span>قفل الجهاز: <b>{v.licenseActivationCount || v.linkedCode?.activationCount || 1} من {v.licenseMaxActivations || v.linkedCode?.maxActivations || 1}</b> (مقفل على هذا الهاتف)</span>
+                                </span>
+
+                                {/* One-Click Reset Device Lock */}
+                                <button
+                                  type="button"
+                                  onClick={() => handleResetVisitorLicenseDevice(v.id)}
+                                  className="px-2 py-1 rounded bg-[#2a1d08] hover:bg-[#3d2a0b] text-[#ffd700] border border-[#d4af37]/40 font-bold transition-all cursor-pointer flex items-center gap-1"
+                                  title="فك قفل الجهاز فورياً ليتمكن المشترك من تشغيله على هاتف آخر"
+                                >
+                                  <Unlock className="w-3 h-3" />
+                                  <span>فك قفل الهاتف</span>
+                                </button>
+                              </div>
+
+                              {/* Subscriber Action Tools Strip */}
+                              <div className="grid grid-cols-3 gap-1.5 pt-1">
+                                {/* Quick Extend License */}
+                                <button
+                                  type="button"
+                                  onClick={() => setExtendTargetVisitor(v)}
+                                  className="py-1.5 px-2 rounded-lg bg-[#241a0b] hover:bg-[#362710] text-[#ffd700] border border-[#d4af37]/35 text-[10px] font-bold flex items-center justify-center gap-1 cursor-pointer transition-all"
+                                  title="تمديد الصلاحية"
+                                >
+                                  <Clock className="w-3 h-3" />
+                                  <span>تمديد الوقت</span>
+                                </button>
+
+                                {/* Suspend / Resume License */}
+                                <button
+                                  type="button"
+                                  onClick={() =>
+                                    handleToggleVisitorLicenseStatus(
+                                      v.id,
+                                      v.licenseStatus || v.linkedCode?.status
+                                    )
+                                  }
+                                  className={`py-1.5 px-2 rounded-lg border text-[10px] font-bold flex items-center justify-center gap-1 cursor-pointer transition-all ${
+                                    v.licenseStatus === 'suspended' || v.linkedCode?.status === 'suspended'
+                                      ? 'bg-[#152e1b] text-[#4ade80] border-[#22c55e]/40 hover:bg-[#1e4226]'
+                                      : 'bg-[#291e0a] text-[#fbbf24] border-[#f59e0b]/40 hover:bg-[#382a0d]'
+                                  }`}
+                                  title={
+                                    v.licenseStatus === 'suspended' || v.linkedCode?.status === 'suspended'
+                                      ? 'تفعيل الكود'
+                                      : 'إيقاف مؤقت'
+                                  }
+                                >
+                                  {v.licenseStatus === 'suspended' || v.linkedCode?.status === 'suspended' ? (
+                                    <>
+                                      <PlayCircle className="w-3 h-3" />
+                                      <span>تنشيط</span>
+                                    </>
+                                  ) : (
+                                    <>
+                                      <PauseCircle className="w-3 h-3" />
+                                      <span>إيقاف</span>
+                                    </>
+                                  )}
+                                </button>
+
+                                {/* Revoke and Kickout */}
+                                <button
+                                  type="button"
+                                  onClick={() => handleRevokeVisitorLicense(v.id)}
+                                  className="py-1.5 px-2 rounded-lg bg-[#271010] hover:bg-[#3d1818] text-[#ff7979] border border-[#ff4d4d]/30 text-[10px] font-bold flex items-center justify-center gap-1 cursor-pointer transition-all"
+                                  title="إلغاء الترخيص نهائياً وطرد المشترك"
+                                >
+                                  <Trash2 className="w-3 h-3" />
+                                  <span>إلغاء وطرد</span>
+                                </button>
+                              </div>
+                            </div>
+                          )}
+
+                          {/* Phone Hardware & Network Telemetry */}
+                          <div className="grid grid-cols-2 gap-2 text-xs">
+                            <div className="bg-[#140e07] border border-[#d4af37]/15 rounded-xl p-2">
+                              <span className="text-[10px] text-[#8e7e60] block mb-0.5">الهاتف المرصود</span>
+                              <span className="font-bold text-white block text-[11px] truncate" title={v.device?.model || 'هاتف ذكي'}>
+                                {v.device?.model || 'هاتف ذكي'}
                               </span>
-                              <span className="text-[9px] text-[#8e7e60] block">
-                                {hasGps ? 'إحداثيات GPS فعلية' : 'تقريب عنوان IP'}
+                              <span className="text-[10px] text-[#cfb780] font-mono block">
+                                {v.device?.os || 'OS'} {v.device?.browser ? `· ${v.device.browser}` : ''}
+                              </span>
+                            </div>
+
+                            <div className="bg-[#140e07] border border-[#d4af37]/15 rounded-xl p-2">
+                              <span className="text-[10px] text-[#8e7e60] block mb-0.5">البطارية والمزود</span>
+                              <div className="flex items-center gap-1 text-[11px] font-mono font-bold text-white">
+                                <Battery className="w-3.5 h-3.5 text-[#22c55e]" />
+                                <span>{typeof v.device?.batteryLevel === 'number' ? `${v.device.batteryLevel}%` : 'متاح'}</span>
+                                {v.device?.isCharging && (
+                                  <Zap className="w-3 h-3 text-[#ffd700] animate-bounce" />
+                                )}
+                              </div>
+                              <span className="text-[10px] text-[#cfb780] block truncate" title={v.isp}>
+                                {v.isp || 'مزود الإنترنت'}
                               </span>
                             </div>
                           </div>
 
-                          <a
-                            href={`https://www.google.com/maps?q=${lat},${lng}`}
-                            target="_blank"
-                            rel="noreferrer"
-                            className="py-1 px-2.5 rounded-lg bg-[#22180a] hover:bg-[#33240e] text-[#ffd700] border border-[#d4af37]/30 text-[10px] font-bold flex items-center gap-1"
-                          >
-                            <ExternalLink className="w-3 h-3" />
-                            <span>خرائط Google</span>
-                          </a>
+                          {/* GPS / Geolocation Pin & Google Maps Link */}
+                          <div className="bg-[#140e07] border border-[#d4af37]/15 rounded-xl p-2 flex items-center justify-between text-xs">
+                            <div className="flex items-center gap-1.5">
+                              <MapPin className={`w-3.5 h-3.5 ${hasGps ? 'text-[#22c55e]' : 'text-[#eab308]'}`} />
+                              <div>
+                                <span className="font-mono text-[11px] text-[#ffd700]">
+                                  {lat.toFixed(4)}, {lng.toFixed(4)}
+                                </span>
+                                <span className="text-[9px] text-[#8e7e60] block">
+                                  {hasGps ? 'إحداثيات GPS فعلية' : 'تقريب عنوان IP'}
+                                </span>
+                              </div>
+                            </div>
+
+                            <div className="flex items-center gap-1">
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setSelectedMapVisitorId(v.id);
+                                  setActiveTab('radar_map');
+                                }}
+                                className="py-1 px-2 rounded-lg bg-[#1e160a] hover:bg-[#2b1f0d] text-[#ffd700] border border-[#d4af37]/30 text-[10px] font-bold flex items-center gap-1"
+                                title="تحديد على رادار الخريطة الداخلي"
+                              >
+                                <Compass className="w-3 h-3" />
+                                <span>الرادار</span>
+                              </button>
+
+                              <a
+                                href={`https://www.google.com/maps?q=${lat},${lng}`}
+                                target="_blank"
+                                rel="noreferrer"
+                                className="py-1 px-2 rounded-lg bg-[#22180a] hover:bg-[#33240e] text-[#ffd700] border border-[#d4af37]/30 text-[10px] font-bold flex items-center gap-1"
+                              >
+                                <ExternalLink className="w-3 h-3" />
+                                <span>Google</span>
+                              </a>
+                            </div>
+                          </div>
+
+                          {/* Customer CRM Note (Editable) */}
+                          <div className="bg-[#100c06] border border-[#d4af37]/15 rounded-xl p-2 text-xs">
+                            {editingNoteVisitorId === v.id ? (
+                              <div className="space-y-1.5">
+                                <input
+                                  type="text"
+                                  value={editingNoteText}
+                                  onChange={(e) => setEditingNoteText(e.target.value)}
+                                  placeholder="اكتب ملاحظة للعميل (مثال: عميل VIP - تليجرام)..."
+                                  className="w-full p-1.5 rounded-lg bg-[#070503] border border-[#ffd700]/50 text-white text-xs focus:outline-none"
+                                />
+                                <div className="flex items-center justify-end gap-1.5">
+                                  <button
+                                    type="button"
+                                    onClick={() => setEditingNoteVisitorId(null)}
+                                    className="px-2 py-0.5 rounded text-[10px] text-[#8e7e60]"
+                                  >
+                                    إلغاء
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => handleSaveVisitorNote(v.id, editingNoteText)}
+                                    className="px-2.5 py-0.5 rounded bg-[#ffd700] text-black text-[10px] font-bold flex items-center gap-1"
+                                  >
+                                    <Save className="w-3 h-3" />
+                                    <span>حفظ</span>
+                                  </button>
+                                </div>
+                              </div>
+                            ) : (
+                              <div className="flex items-center justify-between text-[11px]">
+                                <span className="text-[#8e7e60] truncate max-w-[220px]">
+                                  {v.note ? (
+                                    <span className="text-[#ffd700]">📝 {v.note}</span>
+                                  ) : (
+                                    <span className="italic opacity-60">لا توجد ملاحظات مسجلة</span>
+                                  )}
+                                </span>
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setEditingNoteVisitorId(v.id);
+                                    setEditingNoteText(v.note || '');
+                                  }}
+                                  className="text-[#8e7e60] hover:text-[#ffd700] p-0.5"
+                                  title="تعديل الملاحظة"
+                                >
+                                  <Edit3 className="w-3 h-3" />
+                                </button>
+                              </div>
+                            )}
+                          </div>
                         </div>
 
-                        {/* Actions: Block Device & View Details */}
-                        <div className="flex items-center gap-2 pt-1">
+                        {/* ======================================================== */}
+                        {/* REMOTE COMMAND & CONTROL TERMINAL (INSTANT ACTIONS)     */}
+                        {/* ======================================================== */}
+                        <div className="pt-2 border-t border-[#d4af37]/20 flex flex-wrap items-center gap-1.5">
+                          {/* 1. Remote Instant Force Kickout */}
+                          <button
+                            type="button"
+                            onClick={() => handleKickoutVisitor(v.id)}
+                            className="flex-1 py-1.5 px-2 rounded-xl bg-[#26140d] hover:bg-[#381c12] text-[#f97316] border border-[#ea580c]/35 text-[11px] font-bold flex items-center justify-center gap-1 cursor-pointer transition-all"
+                            title="طرد الجلسة فوراً عن بعد وإخراج الهاتف لشاشة تسجيل الدخول"
+                          >
+                            <LogOut className="w-3.5 h-3.5" />
+                            <span>طرد فوري</span>
+                          </button>
+
+                          {/* 2. Send Targeted Private Message */}
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setMessageTargetVisitor(v);
+                              setTargetedMessageText('');
+                            }}
+                            className="flex-1 py-1.5 px-2 rounded-xl bg-[#17202e] hover:bg-[#202d40] text-[#38bdf8] border border-[#0284c7]/35 text-[11px] font-bold flex items-center justify-center gap-1 cursor-pointer transition-all"
+                            title="إرسال تنبيه أو رسالة خاصة تظهر فوراً على شاشة هاتف هذا المشترك"
+                          >
+                            <MessageSquare className="w-3.5 h-3.5" />
+                            <span>رسالة خاصة</span>
+                          </button>
+
+                          {/* 3. Block / Unblock Toggle */}
                           <button
                             type="button"
                             onClick={() => handleToggleBlock(v.id)}
-                            className={`flex-1 py-1.5 px-3 rounded-xl text-xs font-bold border transition-all cursor-pointer flex items-center justify-center gap-1.5 ${
+                            className={`py-1.5 px-2.5 rounded-xl text-[11px] font-bold border transition-all cursor-pointer flex items-center justify-center gap-1 ${
                               v.blocked
                                 ? 'bg-[#183318] text-[#4ade80] border-[#22c55e]/40'
                                 : 'bg-[#2b1212] text-[#f87171] border-[#ef4444]/40 hover:bg-[#3d1818]'
                             }`}
+                            title={v.blocked ? 'فك حظر هذا الجهاز' : 'حظر هذا الجهاز وعنوان IP'}
                           >
                             <ShieldAlert className="w-3.5 h-3.5" />
-                            <span>{v.blocked ? 'فك حظر الهاتف' : 'حظر هذا الهاتف'}</span>
+                            <span>{v.blocked ? 'فك الحظر' : 'حظر'}</span>
                           </button>
 
+                          {/* 4. Deep Dossier Inspection */}
                           <button
                             type="button"
-                            onClick={() => {
-                              setSelectedMapVisitorId(v.id);
-                              setActiveTab('radar_map');
-                            }}
-                            className="py-1.5 px-3 rounded-xl bg-[#171007] hover:bg-[#251a0b] text-[#ffd700] border border-[#d4af37]/30 text-xs font-bold flex items-center gap-1 cursor-pointer"
+                            onClick={() => setInspectedVisitor(v)}
+                            className="p-1.5 rounded-xl bg-[#140e07] hover:bg-[#22180c] text-[#ffd700] border border-[#d4af37]/30 transition-colors"
+                            title="فحص تقني شامل للملف"
                           >
-                            <Navigation className="w-3.5 h-3.5" />
-                            <span>رؤية بالخريطة</span>
+                            <Layers className="w-3.5 h-3.5" />
                           </button>
                         </div>
                       </div>
@@ -2054,10 +2837,309 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                   })}
 
                   {allVisitors.length === 0 && (
-                    <div className="col-span-full text-center py-10 text-xs text-[#8e7e60]">
-                      لا توجد أجهزة مطابقة لخيارات البحث
+                    <div className="col-span-full text-center py-12 rounded-2xl bg-[#0e0a05] border border-[#d4af37]/20 text-xs text-[#8e7e60]">
+                      لا توجد أجهزة أو مشتركون مطابقون لخيارات البحث المحددة
                     </div>
                   )}
+                </div>
+
+                {/* Pagination Footer */}
+                {visitorsTotalPages > 1 && (
+                  <div className="bg-[#0e0a05] border border-[#d4af37]/25 rounded-2xl p-3 px-4 flex items-center justify-between text-xs">
+                    <span className="text-[#8e7e60]">
+                      إجمالي الأجهزة: <b className="text-[#ffd700] font-mono">{visitorSummary.total}</b> (صفحة {visitorsPage} من {visitorsTotalPages})
+                    </span>
+                    <div className="flex items-center gap-1.5">
+                      <button
+                        disabled={visitorsPage <= 1}
+                        onClick={() => setVisitorsPage((p) => Math.max(1, p - 1))}
+                        className="p-1.5 rounded-lg bg-[#1a140a] disabled:opacity-40 text-[#ffd700] border border-[#d4af37]/30"
+                      >
+                        <ChevronRight className="w-4 h-4" />
+                      </button>
+                      <button
+                        disabled={visitorsPage >= visitorsTotalPages}
+                        onClick={() => setVisitorsPage((p) => Math.min(visitorsTotalPages, p + 1))}
+                        className="p-1.5 rounded-lg bg-[#1a140a] disabled:opacity-40 text-[#ffd700] border border-[#d4af37]/30"
+                      >
+                        <ChevronLeft className="w-4 h-4" />
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* ======================================================== */}
+            {/* MODAL 1: TARGETED PRIVATE MESSAGE DISPATCH               */}
+            {/* ======================================================== */}
+            {messageTargetVisitor && (
+              <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-fadeIn">
+                <div className="w-full max-w-md bg-[#120d06] border-2 border-[#ffd700]/70 rounded-3xl p-5 shadow-[0_0_50px_rgba(255,215,0,0.25)] space-y-4">
+                  <div className="flex items-center justify-between border-b border-[#d4af37]/20 pb-3">
+                    <div className="flex items-center gap-2">
+                      <div className="w-8 h-8 rounded-xl bg-[#261908] border border-[#ffd700]/40 flex items-center justify-center text-[#ffd700]">
+                        <MessageSquare className="w-4 h-4" />
+                      </div>
+                      <div>
+                        <h3 className="text-sm font-bold text-[#ffd700]">
+                          إرسال رسالة خاصة لهاتف المشترك
+                        </h3>
+                        <p className="text-[10px] text-[#8e7e60] font-mono">
+                          الجهاز: {messageTargetVisitor.ip} ({messageTargetVisitor.device?.model || 'هاتف'})
+                        </p>
+                      </div>
+                    </div>
+                    <button
+                      onClick={() => setMessageTargetVisitor(null)}
+                      className="p-1 text-[#8e7e60] hover:text-white"
+                    >
+                      <X className="w-4 h-4" />
+                    </button>
+                  </div>
+
+                  <form onSubmit={handleSendTargetedMessageSubmit} className="space-y-3">
+                    {/* Level Select */}
+                    <div>
+                      <label className="block text-[11px] font-bold text-[#cfb780] mb-1.5">
+                        طراز التنبيه:
+                      </label>
+                      <div className="grid grid-cols-4 gap-1.5">
+                        {[
+                          { level: 'vip', label: '👑 ذهبي VIP' },
+                          { level: 'warning', label: '⚠️ تحذيري' },
+                          { level: 'alert', label: '🚨 طوارئ' },
+                          { level: 'info', label: 'ℹ️ إشعار' },
+                        ].map((b) => (
+                          <button
+                            key={b.level}
+                            type="button"
+                            onClick={() => setTargetedMessageLevel(b.level as any)}
+                            className={`py-1.5 px-2 rounded-xl text-[10px] font-bold border transition-all cursor-pointer ${
+                              targetedMessageLevel === b.level
+                                ? 'bg-[#ffd700] text-black border-[#ffd700] font-black'
+                                : 'bg-[#171007] text-[#cfb780] border-[#d4af37]/20'
+                            }`}
+                          >
+                            {b.label}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+
+                    {/* Message Text */}
+                    <div>
+                      <label className="block text-[11px] font-bold text-[#cfb780] mb-1.5">
+                        نص الرسالة المنبثقة:
+                      </label>
+                      <textarea
+                        rows={3}
+                        required
+                        value={targetedMessageText}
+                        onChange={(e) => setTargetedMessageText(e.target.value)}
+                        placeholder="مثال: مرحباً بك في العرين الذهبي! تم ترقية باقتك إلى VIP بنجاح."
+                        className="w-full p-3 rounded-xl bg-[#090704] border border-[#d4af37]/30 text-white text-xs focus:outline-none focus:border-[#ffd700]"
+                      />
+                    </div>
+
+                    <div className="flex items-center justify-end gap-2 pt-2">
+                      <button
+                        type="button"
+                        onClick={() => setMessageTargetVisitor(null)}
+                        className="py-2 px-3 rounded-xl bg-[#1c140a] text-xs text-[#8e7e60] hover:text-white"
+                      >
+                        إلغاء
+                      </button>
+                      <button
+                        type="submit"
+                        disabled={sendingMessage || !targetedMessageText.trim()}
+                        className="py-2 px-4 rounded-xl bg-gradient-to-r from-[#ffd700] to-[#b38f26] text-black font-black text-xs flex items-center gap-1.5 hover:brightness-110 disabled:opacity-50"
+                      >
+                        {sendingMessage ? <RotateCw className="w-3.5 h-3.5 animate-spin" /> : <Send className="w-3.5 h-3.5" />}
+                        <span>إرسال فوراً للشاشة</span>
+                      </button>
+                    </div>
+                  </form>
+                </div>
+              </div>
+            )}
+
+            {/* ======================================================== */}
+            {/* MODAL 2: EXTEND LICENSE QUICK MODAL                      */}
+            {/* ======================================================== */}
+            {extendTargetVisitor && (
+              <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-fadeIn">
+                <div className="w-full max-w-sm bg-[#120d06] border-2 border-[#ffd700]/70 rounded-3xl p-5 shadow-2xl space-y-4">
+                  <div className="flex items-center justify-between border-b border-[#d4af37]/20 pb-3">
+                    <div className="flex items-center gap-2">
+                      <Clock className="w-5 h-5 text-[#ffd700]" />
+                      <h3 className="text-sm font-bold text-[#ffd700]">
+                        تمديد اشتراك المشترك
+                      </h3>
+                    </div>
+                    <button
+                      onClick={() => setExtendTargetVisitor(null)}
+                      className="p-1 text-[#8e7e60] hover:text-white"
+                    >
+                      <X className="w-4 h-4" />
+                    </button>
+                  </div>
+
+                  <p className="text-xs text-[#cfb780]">
+                    اختر المدة الإضافية التي ترغب في إضافتها لحساب المشترك صاحب الكود:
+                  </p>
+                  <div className="p-2 rounded-lg bg-black/50 border border-[#d4af37]/25 text-xs font-mono font-bold text-[#ffd700] text-center">
+                    {extendTargetVisitor.activeCodeMasked || 'كود الترخيص المرتبط'}
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-2">
+                    {[
+                      { hours: 24, label: '+24 ساعة (يوم)' },
+                      { hours: 72, label: '+3 أيام' },
+                      { hours: 168, label: '+7 أيام (أسبوع)' },
+                      { hours: 720, label: '+30 يوماً (شهر)' },
+                    ].map((opt) => (
+                      <button
+                        key={opt.hours}
+                        type="button"
+                        onClick={() =>
+                          handleExtendVisitorLicense(
+                            extendTargetVisitor.id,
+                            opt.hours * 60,
+                            opt.label
+                          )
+                        }
+                        className="py-2.5 px-3 rounded-xl bg-[#1d1408] hover:bg-[#2c1f0d] text-[#ffd700] border border-[#d4af37]/35 text-xs font-bold transition-all cursor-pointer text-center"
+                      >
+                        {opt.label}
+                      </button>
+                    ))}
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={() => setExtendTargetVisitor(null)}
+                    className="w-full py-2 rounded-xl bg-[#140e07] text-xs text-[#8e7e60] hover:text-white"
+                  >
+                    إلغاء
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {/* ======================================================== */}
+            {/* MODAL 3: DEEP DOSSIER INSPECTION MODAL                   */}
+            {/* ======================================================== */}
+            {inspectedVisitor && (
+              <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-fadeIn">
+                <div className="w-full max-w-lg bg-[#0e0a05] border-2 border-[#d4af37] rounded-3xl p-5 sm:p-6 shadow-2xl space-y-4 max-h-[90vh] overflow-y-auto">
+                  <div className="flex items-center justify-between border-b border-[#d4af37]/25 pb-3">
+                    <div className="flex items-center gap-2">
+                      <Layers className="w-5 h-5 text-[#ffd700]" />
+                      <h3 className="text-sm font-bold text-[#ffd700]">
+                        الملف التقني والاستخباراتي الشامل للجهاز
+                      </h3>
+                    </div>
+                    <button
+                      onClick={() => setInspectedVisitor(null)}
+                      className="p-1 text-[#8e7e60] hover:text-white"
+                    >
+                      <X className="w-4 h-4" />
+                    </button>
+                  </div>
+
+                  <div className="space-y-3 text-xs">
+                    <div className="grid grid-cols-2 gap-2">
+                      <div className="bg-[#140e07] p-2.5 rounded-xl border border-[#d4af37]/20">
+                        <span className="text-[#8e7e60] block text-[10px]">معرف الزائر الداخلي:</span>
+                        <span className="font-mono text-[#ffd700] text-[11px] select-all block break-all">
+                          {inspectedVisitor.id}
+                        </span>
+                      </div>
+                      <div className="bg-[#140e07] p-2.5 rounded-xl border border-[#d4af37]/20">
+                        <span className="text-[#8e7e60] block text-[10px]">عنوان IP:</span>
+                        <span className="font-mono text-white text-[11px] select-all block">
+                          {inspectedVisitor.ip}
+                        </span>
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-2">
+                      <div className="bg-[#140e07] p-2.5 rounded-xl border border-[#d4af37]/20">
+                        <span className="text-[#8e7e60] block text-[10px]">أول ظهور (First Seen):</span>
+                        <span className="text-white block font-mono">
+                          {formatFullArabicDateTime(inspectedVisitor.firstSeenAt)}
+                        </span>
+                        <span className="text-[10px] text-[#ffd700]">
+                          {formatRelativeArabic(inspectedVisitor.firstSeenAt)}
+                        </span>
+                      </div>
+                      <div className="bg-[#140e07] p-2.5 rounded-xl border border-[#d4af37]/20">
+                        <span className="text-[#8e7e60] block text-[10px]">آخر ظهور (Last Seen):</span>
+                        <span className="text-white block font-mono">
+                          {formatFullArabicDateTime(inspectedVisitor.lastSeenAt)}
+                        </span>
+                        <span className="text-[10px] text-[#38bdf8]">
+                          {inspectedVisitor.isActive ? 'نشط الآن 🟢' : formatRelativeArabic(inspectedVisitor.lastSeenAt)}
+                        </span>
+                      </div>
+                    </div>
+
+                    <div className="bg-[#140e07] p-2.5 rounded-xl border border-[#d4af37]/20 space-y-1">
+                      <span className="text-[#8e7e60] block text-[10px]">متصفح العميل (User Agent):</span>
+                      <p className="font-mono text-[11px] text-white select-all break-all leading-relaxed">
+                        {inspectedVisitor.userAgent}
+                      </p>
+                    </div>
+
+                    <div className="grid grid-cols-3 gap-2 text-center">
+                      <div className="bg-[#140e07] p-2 rounded-xl border border-[#d4af37]/15">
+                        <span className="text-[10px] text-[#8e7e60] block">عدد الجلسات</span>
+                        <span className="text-sm font-bold text-white font-mono">{inspectedVisitor.visitCount || 1}</span>
+                      </div>
+                      <div className="bg-[#140e07] p-2 rounded-xl border border-[#d4af37]/15">
+                        <span className="text-[10px] text-[#8e7e60] block">مستوى البطارية</span>
+                        <span className="text-sm font-bold text-[#4ade80] font-mono">
+                          {typeof inspectedVisitor.device?.batteryLevel === 'number'
+                            ? `${inspectedVisitor.device.batteryLevel}%`
+                            : 'غير متاح'}
+                        </span>
+                      </div>
+                      <div className="bg-[#140e07] p-2 rounded-xl border border-[#d4af37]/15">
+                        <span className="text-[10px] text-[#8e7e60] block">حالة الشحن</span>
+                        <span className="text-sm font-bold text-white">
+                          {inspectedVisitor.device?.isCharging ? '⚡ يشحن الآن' : 'غير موصول'}
+                        </span>
+                      </div>
+                    </div>
+
+                    {inspectedVisitor.linkedCode && (
+                      <div className="bg-[#1a1207] p-3 rounded-xl border border-[#ffd700]/30 space-y-1.5 font-mono text-[11px]">
+                        <span className="text-[#ffd700] font-bold block font-sans">بيانات كود الترخيص المشفر:</span>
+                        <div>الكود الصريح: <b className="text-white select-all">{inspectedVisitor.linkedCode.plainCode || inspectedVisitor.linkedCode.masked}</b></div>
+                        <div>المدة: <span className="text-[#cfb780]">{inspectedVisitor.linkedCode.durationType}</span></div>
+                        <div>الانتهاء: <span className="text-[#cfb780]">{inspectedVisitor.linkedCode.expiresAt || 'مفتوح'}</span></div>
+                        <div>التفعيلات: <span className="text-[#cfb780]">{inspectedVisitor.linkedCode.activationCount} / {inspectedVisitor.linkedCode.maxActivations}</span></div>
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="flex items-center justify-end gap-2 pt-2 border-t border-[#d4af37]/20">
+                    <button
+                      type="button"
+                      onClick={() => handleDeleteVisitor(inspectedVisitor.id)}
+                      className="py-2 px-3 rounded-xl bg-[#2b1010] hover:bg-[#3d1818] text-[#f87171] border border-[#ef4444]/30 text-xs font-bold"
+                    >
+                      حذف السجل نهائياً
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setInspectedVisitor(null)}
+                      className="py-2 px-4 rounded-xl bg-[#ffd700] text-black font-bold text-xs"
+                    >
+                      إغلاق
+                    </button>
+                  </div>
                 </div>
               </div>
             )}

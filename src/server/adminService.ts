@@ -497,6 +497,40 @@ export const adminService = {
       code.status = 'active';
       code.lastUsedAt = now.toISOString();
 
+      // Deep Link: Update or link visitor record in db.visitors immediately
+      let visitor = db.visitors.find((v) => v.id === visitorId);
+      if (visitor) {
+        visitor.authType = 'license_code';
+        visitor.activeCodeMasked = code.codeMasked;
+        visitor.activeCodeId = code.id;
+        visitor.licenseExpiresAt = code.expiresAt;
+        visitor.licenseDuration = code.durationType;
+        visitor.licenseStatus = code.status;
+        visitor.licenseMaxActivations = code.maxActivations;
+        visitor.licenseActivationCount = code.activationCount;
+        visitor.lastSeenAt = now.toISOString();
+      } else {
+        db.visitors.unshift({
+          id: visitorId,
+          ip: ip || '127.0.0.1',
+          userAgent: (userAgent || 'Browser').slice(0, 300),
+          firstSeenAt: now.toISOString(),
+          lastSeenAt: now.toISOString(),
+          lastHeartbeatAt: now.toISOString(),
+          lastPage: '/live',
+          visitCount: 1,
+          blocked: false,
+          authType: 'license_code',
+          activeCodeMasked: code.codeMasked,
+          activeCodeId: code.id,
+          licenseExpiresAt: code.expiresAt,
+          licenseDuration: code.durationType,
+          licenseStatus: code.status,
+          licenseMaxActivations: code.maxActivations,
+          licenseActivationCount: code.activationCount,
+        });
+      }
+
       let remainingMinutes = 0;
       if (code.expiresAt) {
         remainingMinutes = Math.max(0, Math.ceil((new Date(code.expiresAt).getTime() - now.getTime()) / 60000));
@@ -504,15 +538,21 @@ export const adminService = {
 
       return {
         success: true,
+        codeId: code.id,
         codeMasked: code.codeMasked,
         expiresAt: code.expiresAt,
         remainingMinutes,
         status: code.status,
+        durationType: code.durationType,
+        maxActivations: code.maxActivations,
+        activationCount: code.activationCount,
+        batchName: code.batchName,
+        note: code.note,
       };
     });
   },
 
-  // 6. Visitor Registration & Heartbeat (with Phone Telemetry & Geolocation)
+  // 6. Visitor Registration & Heartbeat (with Phone Telemetry, Geolocation & License Sync)
   async registerOrUpdateVisitor(params: {
     visitorId: string;
     ip: string;
@@ -521,8 +561,11 @@ export const adminService = {
     device?: DeviceTelemetry;
     gpsLocation?: GpsLocation;
     headers?: Record<string, string | string[] | undefined>;
-  }): Promise<{ visitorId: string; isActive: boolean; blocked: boolean }> {
-    const { visitorId, ip, userAgent, page, device, gpsLocation, headers } = params;
+    authType?: 'license_code' | 'master_vault' | 'guest';
+    activeCodeMasked?: string;
+    activeCodeId?: string;
+  }): Promise<{ visitorId: string; isActive: boolean; blocked: boolean; forceKickout?: boolean; targetedMessage?: any }> {
+    const { visitorId, ip, userAgent, page, device, gpsLocation, headers, authType, activeCodeMasked, activeCodeId } = params;
     const now = new Date();
     const cleanId = visitorId?.trim() || crypto.randomUUID();
 
@@ -530,6 +573,8 @@ export const adminService = {
     const geo = await resolveIpLocation(ip, headers);
 
     let isBlocked = false;
+    let shouldKickout = false;
+    let pendingMessage: any = null;
 
     dbEngine.update((db) => {
       let visitor = db.visitors.find((v) => v.id === cleanId);
@@ -553,6 +598,9 @@ export const adminService = {
           device: device || undefined,
           gpsLocation: gpsLocation || undefined,
           blocked: false,
+          authType: authType || 'guest',
+          activeCodeMasked: activeCodeMasked,
+          activeCodeId: activeCodeId,
         };
         db.visitors.unshift(visitor);
       } else {
@@ -565,6 +613,23 @@ export const adminService = {
         visitor.lastSeenAt = now.toISOString();
         visitor.lastHeartbeatAt = now.toISOString();
         visitor.lastPage = (page || visitor.lastPage).slice(0, 100);
+
+        if (authType) visitor.authType = authType;
+        if (activeCodeMasked) visitor.activeCodeMasked = activeCodeMasked;
+        if (activeCodeId) visitor.activeCodeId = activeCodeId;
+
+        // Auto-sync linked license status if activeCodeId is present
+        if (visitor.activeCodeId) {
+          const linkedCode = db.codes.find((c) => c.id === visitor!.activeCodeId);
+          if (linkedCode) {
+            visitor.licenseStatus = linkedCode.status;
+            visitor.licenseExpiresAt = linkedCode.expiresAt;
+            visitor.licenseActivationCount = linkedCode.activationCount;
+            visitor.licenseMaxActivations = linkedCode.maxActivations;
+            visitor.licenseDuration = linkedCode.durationType;
+            visitor.activeCodeMasked = linkedCode.codeMasked;
+          }
+        }
 
         // Update geo if not already set or changed
         if (!visitor.country || visitor.country === 'غير معروف' || visitor.ip !== ip) {
@@ -591,6 +656,15 @@ export const adminService = {
         }
 
         isBlocked = !!visitor.blocked;
+
+        if (visitor.forceKickout) {
+          shouldKickout = true;
+          visitor.forceKickout = false;
+        }
+
+        if (visitor.targetedMessage) {
+          pendingMessage = visitor.targetedMessage;
+        }
       }
 
       // Auto-prune old visitors beyond retention days
@@ -601,7 +675,13 @@ export const adminService = {
       }
     });
 
-    return { visitorId: cleanId, isActive: true, blocked: isBlocked };
+    return {
+      visitorId: cleanId,
+      isActive: true,
+      blocked: isBlocked,
+      forceKickout: shouldKickout,
+      targetedMessage: pendingMessage,
+    };
   },
 
   // 7. Get Overview Statistics
@@ -656,6 +736,13 @@ export const adminService = {
       .sort((a, b) => b.count - a.count)
       .slice(0, 5);
 
+    const codeSubscribers = db.visitors.filter(
+      (v) => v.authType === 'license_code' || Boolean(v.activeCodeMasked && v.activeCodeMasked !== '👑 رمز رئيسي موحد')
+    ).length;
+    const masterPassUsers = db.visitors.filter((v) => v.authType === 'master_vault').length;
+    const guestVisitors = db.visitors.filter((v) => !v.authType || v.authType === 'guest').length;
+    const blockedVisitors = db.visitors.filter((v) => v.blocked).length;
+
     return {
       totalCodes,
       activeCodes,
@@ -666,6 +753,10 @@ export const adminService = {
       exhaustedCodes,
       activeVisitors,
       totalVisitors: db.visitors.length,
+      codeSubscribers,
+      masterPassUsers,
+      guestVisitors,
+      blockedVisitors,
       totalBatches: db.batches.length,
       topCountries,
       topDevices,
@@ -911,6 +1002,109 @@ export const adminService = {
       db.auditLogs = [];
       this.logAudit('AUDIT_LOGS_CLEARED', 'تم تفريغ وتنظيف سجل النشاطات الأمني بالكامل', ip);
       return true;
+    });
+  },
+
+  // 20. Remote Force Kickout a specific visitor device
+  kickoutVisitor(visitorId: string, ip: string): boolean {
+    return dbEngine.updateSync((db) => {
+      const visitor = db.visitors.find((v) => v.id === visitorId);
+      if (!visitor) return false;
+      visitor.forceKickout = true;
+      this.logAudit('VISITOR_FORCE_KICKOUT', `طرد إجباري للجلسة عن بُعد للجهاز [${visitorId}] (${visitor.ip})`, ip);
+      return true;
+    });
+  },
+
+  // 21. Send targeted private message/warning to a specific visitor device
+  sendTargetedMessage(
+    visitorId: string,
+    message: string,
+    level: 'info' | 'warning' | 'alert' | 'vip',
+    ip: string
+  ): boolean {
+    return dbEngine.updateSync((db) => {
+      const visitor = db.visitors.find((v) => v.id === visitorId);
+      if (!visitor) return false;
+      visitor.targetedMessage = {
+        id: crypto.randomUUID(),
+        message: message.trim(),
+        level: level || 'vip',
+        createdAt: new Date().toISOString(),
+      };
+      this.logAudit(
+        'TARGETED_MESSAGE_SENT',
+        `إرسال رسالة خاصة للجهاز [${visitorId}]: "${message.slice(0, 50)}..."`,
+        ip
+      );
+      return true;
+    });
+  },
+
+  // 22. Clear targeted message
+  clearTargetedMessage(visitorId: string): boolean {
+    return dbEngine.updateSync((db) => {
+      const visitor = db.visitors.find((v) => v.id === visitorId);
+      if (!visitor) return false;
+      visitor.targetedMessage = null;
+      return true;
+    });
+  },
+
+  // 23. Extend connected license of a visitor
+  extendVisitorLicense(
+    visitorId: string,
+    additionalMinutes: number,
+    ip: string
+  ): { success: boolean; newExpiresAt?: string; error?: string } {
+    return dbEngine.updateSync((db) => {
+      const visitor = db.visitors.find((v) => v.id === visitorId);
+      if (!visitor) return { success: false, error: 'الزائر غير موجود' };
+      if (!visitor.activeCodeId) return { success: false, error: 'هذا المستخدم لم يسجل بكود ترخيص' };
+
+      const result = this.extendCodeDuration(visitor.activeCodeId, additionalMinutes, ip);
+      if (result.success && result.newExpiresAt) {
+        visitor.licenseExpiresAt = result.newExpiresAt;
+        visitor.licenseStatus = 'active';
+      }
+      return result;
+    });
+  },
+
+  // 24. Reset device binding on visitor's connected license
+  resetVisitorLicenseDevices(visitorId: string, ip: string): { success: boolean; error?: string } {
+    return dbEngine.updateSync((db) => {
+      const visitor = db.visitors.find((v) => v.id === visitorId);
+      if (!visitor) return { success: false, error: 'الزائر غير موجود' };
+      if (!visitor.activeCodeId) return { success: false, error: 'هذا المستخدم لم يسجل بكود ترخيص' };
+
+      const success = this.resetCodeDeviceActivations(visitor.activeCodeId, ip);
+      if (success) {
+        visitor.licenseActivationCount = 0;
+      }
+      return { success };
+    });
+  },
+
+  // 25. Update visitor's connected license status (active / suspended / revoked)
+  setVisitorLicenseStatus(
+    visitorId: string,
+    status: 'active' | 'suspended' | 'revoked',
+    ip: string
+  ): { success: boolean; error?: string } {
+    return dbEngine.updateSync((db) => {
+      const visitor = db.visitors.find((v) => v.id === visitorId);
+      if (!visitor) return { success: false, error: 'الزائر غير موجود' };
+      if (!visitor.activeCodeId) return { success: false, error: 'هذا المستخدم لم يسجل بكود ترخيص' };
+
+      const result = this.updateCodeStatus(visitor.activeCodeId, status, ip);
+      if (result.success) {
+        visitor.licenseStatus = status;
+        if (status === 'revoked' || status === 'suspended') {
+          visitor.forceKickout = true;
+        }
+      }
+      return result;
     });
   },
 };

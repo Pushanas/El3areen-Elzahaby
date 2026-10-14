@@ -98,6 +98,13 @@ export interface IpLocation {
   timezone?: string;
 }
 
+export interface TargetedMessage {
+  id: string;
+  message: string;
+  level: 'info' | 'warning' | 'alert' | 'vip';
+  createdAt: string;
+}
+
 export interface VisitorRecord {
   id: string; // visitor UUID
   ip: string;
@@ -118,6 +125,17 @@ export interface VisitorRecord {
   gpsLocation?: GpsLocation;
   blocked?: boolean;
   note?: string;
+  // --- High-Level License & Remote Presence Features ---
+  authType?: 'license_code' | 'master_vault' | 'guest';
+  activeCodeMasked?: string;
+  activeCodeId?: string;
+  licenseExpiresAt?: string | null;
+  licenseDuration?: string;
+  licenseStatus?: string;
+  licenseMaxActivations?: number;
+  licenseActivationCount?: number;
+  forceKickout?: boolean;
+  targetedMessage?: TargetedMessage | null;
 }
 
 export interface AuditLog {

@@ -73,18 +73,35 @@ async function localPbkdf2Verify(password: string): Promise<boolean> {
  * Verifies password via server API or local PBKDF2.
  * Returns session version if successful.
  */
-export async function verifyMasterPassword(password: string): Promise<{ success: boolean; sessionVersion?: string; error?: string }> {
+export async function verifyMasterPassword(password: string): Promise<{ success: boolean; sessionVersion?: string; error?: string; authType?: string; license?: any }> {
   const cleanPass = password.trim();
   if (!cleanPass) {
     return { success: false, error: 'يرجى إدخال كلمة المرور' };
+  }
+
+  // Get or initialize visitor UUID
+  let visitorId = 'anon_visitor';
+  try {
+    const existing = localStorage.getItem('areen_visitor_uuid');
+    if (existing) {
+      visitorId = existing;
+    } else {
+      visitorId = 'vis_' + Math.random().toString(36).substring(2, 10) + '_' + Date.now().toString(36);
+      localStorage.setItem('areen_visitor_uuid', visitorId);
+    }
+  } catch {
+    // fallback
   }
 
   // 1. Try server endpoint
   try {
     const res = await fetch('/api/auth/login', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ password: cleanPass }),
+      headers: { 
+        'Content-Type': 'application/json',
+        'x-visitor-id': visitorId,
+      },
+      body: JSON.stringify({ password: cleanPass, visitorId }),
     });
 
     const data = await res.json();
@@ -92,7 +109,30 @@ export async function verifyMasterPassword(password: string): Promise<{ success:
       if (data.sessionVersion) {
         sessionStorage.setItem('areen_session_version', data.sessionVersion);
       }
-      return { success: true, sessionVersion: data.sessionVersion };
+      sessionStorage.setItem('areen_session_auth', 'true');
+      localStorage.setItem('areen_session_auth', 'true');
+
+      if (data.authType === 'license_code') {
+        sessionStorage.setItem('areen_auth_type', 'license_code');
+        sessionStorage.setItem('areen_active_code_masked', data.license?.codeMasked || '');
+        sessionStorage.setItem('areen_active_code_id', data.license?.codeId || data.license?.id || '');
+        sessionStorage.setItem('areen_license_expires_at', data.license?.expiresAt || '');
+        localStorage.setItem('areen_saved_auth_type', 'license_code');
+        localStorage.setItem('areen_saved_code_masked', data.license?.codeMasked || '');
+      } else if (data.authType === 'master_vault') {
+        sessionStorage.setItem('areen_auth_type', 'master_vault');
+        sessionStorage.setItem('areen_active_code_masked', '👑 رمز رئيسي موحد');
+        sessionStorage.removeItem('areen_active_code_id');
+        sessionStorage.removeItem('areen_license_expires_at');
+        localStorage.setItem('areen_saved_auth_type', 'master_vault');
+      }
+
+      return { 
+        success: true, 
+        sessionVersion: data.sessionVersion, 
+        authType: data.authType, 
+        license: data.license 
+      };
     } else {
       return { success: false, error: data.error || 'كلمة المرور غير صحيحة' };
     }
@@ -102,7 +142,9 @@ export async function verifyMasterPassword(password: string): Promise<{ success:
     if (ok) {
       const fallbackVer = localStorage.getItem('areen_auth_epoch') || 'v1';
       sessionStorage.setItem('areen_session_version', fallbackVer);
-      return { success: true, sessionVersion: fallbackVer };
+      sessionStorage.setItem('areen_session_auth', 'true');
+      sessionStorage.setItem('areen_auth_type', 'master_vault');
+      return { success: true, sessionVersion: fallbackVer, authType: 'master_vault' };
     }
     return { success: false, error: 'كلمة المرور غير صحيحة' };
   }

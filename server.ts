@@ -197,6 +197,15 @@ app.post('/api/auth/login', (req: Request, res: Response) => {
 
   if (isValidVault) {
     failedAttemptsMap.delete(ip);
+    const cleanVisitorId = (visitorId || req.headers['x-visitor-id'] || 'anon_visitor') as string;
+    dbEngine.update((db) => {
+      const visitor = db.visitors.find((v) => v.id === cleanVisitorId);
+      if (visitor) {
+        visitor.authType = 'master_vault';
+        visitor.activeCodeMasked = '👑 رمز رئيسي موحد';
+        visitor.licenseStatus = 'unlimited';
+      }
+    });
     return res.json({
       success: true,
       authType: 'master_vault',
@@ -258,9 +267,9 @@ app.post('/api/license/activate', (req: Request, res: Response) => {
   });
 });
 
-// 3. Visitor Registration & Heartbeat (with Telemetry & Geolocation)
+// 3. Visitor Registration & Heartbeat (with Telemetry, License Linkage & Geolocation)
 app.post('/api/visitor/heartbeat', async (req: Request, res: Response) => {
-  const { visitorId, page, device, gpsLocation } = req.body;
+  const { visitorId, page, device, gpsLocation, authType, activeCodeMasked, activeCodeId } = req.body;
   const ip = getClientIp(req);
   const userAgent = (req.headers['user-agent'] || 'Browser') as string;
 
@@ -273,6 +282,9 @@ app.post('/api/visitor/heartbeat', async (req: Request, res: Response) => {
       device,
       gpsLocation,
       headers: req.headers as Record<string, string | string[] | undefined>,
+      authType,
+      activeCodeMasked,
+      activeCodeId,
     });
 
     if (result.blocked) {
@@ -283,10 +295,27 @@ app.post('/api/visitor/heartbeat', async (req: Request, res: Response) => {
       });
     }
 
+    if (result.forceKickout) {
+      return res.status(401).json({
+        success: false,
+        kickedOut: true,
+        error: 'تم إنهاء وطرد جلستك من قبل إدارة العرين الذهبي.',
+      });
+    }
+
     return res.json({ success: true, ...result });
   } catch (err) {
     return res.json({ success: true, visitorId, isActive: true });
   }
+});
+
+// Acknowledge / dismiss targeted message
+app.post('/api/visitor/ack-message', (req: Request, res: Response) => {
+  const { visitorId } = req.body;
+  if (visitorId) {
+    adminService.clearTargetedMessage(visitorId);
+  }
+  return res.json({ success: true });
 });
 
 // 4. Session verification heartbeat
@@ -586,35 +615,126 @@ app.get('/api/admin/visitors/active', requireAdmin, (req: Request, res: Response
   return res.json({ success: true, count: activeList.length, visitors: activeList });
 });
 
-// Admin Full Visitors History (Paginated)
+// Admin Full Visitors History & Subscriber Intelligence (Paginated & Filtered)
 app.get('/api/admin/visitors', requireAdmin, (req: Request, res: Response) => {
-  const { page = '1', limit = '20', search = '', status = 'all' } = req.query;
+  const { page = '1', limit = '24', search = '', status = 'all', sortBy = 'lastSeen' } = req.query;
   const p = Math.max(1, parseInt(page as string, 10) || 1);
-  const l = Math.min(100, Math.max(1, parseInt(limit as string, 10) || 20));
+  const l = Math.min(100, Math.max(1, parseInt(limit as string, 10) || 24));
 
   const db = dbEngine.get();
   const now = Date.now();
   const activeCutoff = now - 75000;
 
-  let list = db.visitors.map((v) => ({
-    ...v,
-    isActive: new Date(v.lastHeartbeatAt).getTime() >= activeCutoff,
-  }));
+  // Enrich each visitor record with real-time status and linked code telemetry
+  let list = db.visitors.map((v) => {
+    const isActive = new Date(v.lastHeartbeatAt).getTime() >= activeCutoff;
 
-  // Search filter (by IP or visitorId)
+    let linkedCode: any = null;
+    let codeCandidate = v.activeCodeId ? db.codes.find((c) => c.id === v.activeCodeId) : undefined;
+    if (!codeCandidate && v.activeCodeMasked && v.activeCodeMasked !== '👑 رمز رئيسي موحد') {
+      codeCandidate = db.codes.find((c) => c.codeMasked === v.activeCodeMasked);
+    }
+
+    if (codeCandidate) {
+      let remainingMinutes = 0;
+      if (codeCandidate.expiresAt) {
+        remainingMinutes = Math.max(0, Math.ceil((new Date(codeCandidate.expiresAt).getTime() - now) / 60000));
+      }
+
+      linkedCode = {
+        id: codeCandidate.id,
+        masked: codeCandidate.codeMasked,
+        plainCode: adminService.decryptFullCode(codeCandidate.id) || codeCandidate.codeMasked,
+        status: codeCandidate.status,
+        durationType: codeCandidate.durationType,
+        durationMinutes: codeCandidate.durationMinutes,
+        startsOn: codeCandidate.startsOn,
+        createdAt: codeCandidate.createdAt,
+        firstActivatedAt: codeCandidate.firstActivatedAt,
+        expiresAt: codeCandidate.expiresAt,
+        remainingMinutes,
+        batchName: codeCandidate.batchName,
+        note: codeCandidate.note,
+        maxActivations: codeCandidate.maxActivations,
+        activationCount: codeCandidate.activationCount,
+        activations: codeCandidate.activations,
+      };
+    }
+
+    return {
+      ...v,
+      isActive,
+      linkedCode,
+    };
+  });
+
+  // Calculate real-time summary counts before filtering
+  const totalCodeSubscribers = list.filter(
+    (v) => v.authType === 'license_code' || Boolean(v.activeCodeMasked && v.activeCodeMasked !== '👑 رمز رئيسي موحد')
+  ).length;
+  const totalActiveNow = list.filter((v) => v.isActive).length;
+  const totalMasterUsers = list.filter((v) => v.authType === 'master_vault').length;
+  const totalBlocked = list.filter((v) => v.blocked).length;
+
+  // Search filter (Multi-attribute intelligence search)
   const q = (search as string).trim().toLowerCase();
   if (q) {
-    list = list.filter((v) => v.ip.toLowerCase().includes(q) || v.id.toLowerCase().includes(q));
+    list = list.filter((v) => {
+      const matchIp = v.ip && v.ip.toLowerCase().includes(q);
+      const matchId = v.id && v.id.toLowerCase().includes(q);
+      const matchCodeMasked = v.activeCodeMasked && v.activeCodeMasked.toLowerCase().includes(q);
+      const matchPlainCode = v.linkedCode?.plainCode && v.linkedCode.plainCode.toLowerCase().includes(q);
+      const matchCity = v.city && v.city.toLowerCase().includes(q);
+      const matchCountry = v.country && v.country.toLowerCase().includes(q);
+      const matchIsp = v.isp && v.isp.toLowerCase().includes(q);
+      const matchModel = v.device?.model && v.device.model.toLowerCase().includes(q);
+      const matchOs = v.device?.os && v.device.os.toLowerCase().includes(q);
+      const matchNote = v.note && v.note.toLowerCase().includes(q);
+      return (
+        matchIp ||
+        matchId ||
+        matchCodeMasked ||
+        matchPlainCode ||
+        matchCity ||
+        matchCountry ||
+        matchIsp ||
+        matchModel ||
+        matchOs ||
+        matchNote
+      );
+    });
   }
 
-  // Status filter
-  if (status === 'active') {
+  // Filter by auth / connection status
+  if (status === 'code_registered') {
+    list = list.filter(
+      (v) => v.authType === 'license_code' || Boolean(v.activeCodeMasked && v.activeCodeMasked !== '👑 رمز رئيسي موحد')
+    );
+  } else if (status === 'active') {
     list = list.filter((v) => v.isActive);
   } else if (status === 'inactive') {
     list = list.filter((v) => !v.isActive);
+  } else if (status === 'master_vault') {
+    list = list.filter((v) => v.authType === 'master_vault');
+  } else if (status === 'guest') {
+    list = list.filter((v) => !v.authType || v.authType === 'guest');
+  } else if (status === 'blocked') {
+    list = list.filter((v) => v.blocked);
   }
 
-  list.sort((a, b) => new Date(b.lastSeenAt).getTime() - new Date(a.lastSeenAt).getTime());
+  // Sort order
+  if (sortBy === 'firstSeen') {
+    list.sort((a, b) => new Date(b.firstSeenAt).getTime() - new Date(a.firstSeenAt).getTime());
+  } else if (sortBy === 'firstSeenOldest') {
+    list.sort((a, b) => new Date(a.firstSeenAt).getTime() - new Date(b.firstSeenAt).getTime());
+  } else if (sortBy === 'visits') {
+    list.sort((a, b) => (b.visitCount || 1) - (a.visitCount || 1));
+  } else if (sortBy === 'status') {
+    list.sort((a, b) => (b.isActive ? 1 : 0) - (a.isActive ? 1 : 0));
+  } else {
+    // default: lastSeen newest
+    list.sort((a, b) => new Date(b.lastSeenAt).getTime() - new Date(a.lastSeenAt).getTime());
+  }
 
   const total = list.length;
   const totalPages = Math.ceil(total / l);
@@ -627,6 +747,10 @@ app.get('/api/admin/visitors', requireAdmin, (req: Request, res: Response) => {
     limit: l,
     total,
     totalPages,
+    totalCodeSubscribers,
+    totalActiveNow,
+    totalMasterUsers,
+    totalBlocked,
     visitors: paginated,
   });
 });
@@ -644,6 +768,55 @@ app.post('/api/admin/visitors/:id/block', requireAdmin, (req: Request, res: Resp
   const { note } = req.body;
   const ip = getClientIp(req);
   const result = adminService.toggleBlockVisitor(id, ip, note);
+  return res.json(result);
+});
+
+// Admin Remote Force Kickout Visitor
+app.post('/api/admin/visitors/:id/kickout', requireAdmin, (req: Request, res: Response) => {
+  const { id } = req.params;
+  const ip = getClientIp(req);
+  const success = adminService.kickoutVisitor(id, ip);
+  return res.json({ success });
+});
+
+// Admin Send Targeted Private Message to Visitor Device
+app.post('/api/admin/visitors/:id/message', requireAdmin, (req: Request, res: Response) => {
+  const { id } = req.params;
+  const { message, level } = req.body;
+  const ip = getClientIp(req);
+  if (!message || typeof message !== 'string') {
+    return res.status(400).json({ success: false, error: 'نص الرسالة مطلوب' });
+  }
+  const success = adminService.sendTargetedMessage(id, message, level || 'vip', ip);
+  return res.json({ success });
+});
+
+// Admin Quick Extend Visitor's Connected License (+24h, +7d, +30d, Lifetime)
+app.post('/api/admin/visitors/:id/extend-license', requireAdmin, (req: Request, res: Response) => {
+  const { id } = req.params;
+  const { additionalMinutes = 1440 } = req.body;
+  const ip = getClientIp(req);
+  const result = adminService.extendVisitorLicense(id, Number(additionalMinutes), ip);
+  return res.json(result);
+});
+
+// Admin Reset Device Bindings for Visitor's Connected License
+app.post('/api/admin/visitors/:id/reset-license-device', requireAdmin, (req: Request, res: Response) => {
+  const { id } = req.params;
+  const ip = getClientIp(req);
+  const result = adminService.resetVisitorLicenseDevices(id, ip);
+  return res.json(result);
+});
+
+// Admin Toggle Visitor's Connected License Status (active / suspended / revoked)
+app.post('/api/admin/visitors/:id/toggle-license-status', requireAdmin, (req: Request, res: Response) => {
+  const { id } = req.params;
+  const { status } = req.body;
+  const ip = getClientIp(req);
+  if (!['active', 'suspended', 'revoked'].includes(status)) {
+    return res.status(400).json({ success: false, error: 'حالة غير صالحة' });
+  }
+  const result = adminService.setVisitorLicenseStatus(id, status, ip);
   return res.json(result);
 });
 
