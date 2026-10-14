@@ -1,5 +1,4 @@
 import express, { type Request, type Response } from 'express';
-import { createServer as createViteServer } from 'vite';
 import fs from 'fs';
 import path from 'path';
 import crypto from 'crypto';
@@ -7,11 +6,37 @@ import { dbEngine, type DurationType, type StartsOnType } from './src/server/db.
 import { adminService } from './src/server/adminService.ts';
 import { envInfo, getStorageDiagnostics, ensureStorageInitialized } from './database.ts';
 
-// Ensure storage directory and files are seeded immediately upon serverless cold start
+// Ensure storage directory and files are seeded immediately upon cold start
 ensureStorageInitialized();
 
 const app = express();
 app.use(express.json());
+
+// 1. Universal CORS & Preflight handler
+app.use((req: Request, res: Response, next: () => void) => {
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, x-admin-token, x-visitor-id');
+  if (req.method === 'OPTIONS') {
+    return res.status(204).end();
+  }
+  next();
+});
+
+// 2. URL normalizer to support Vercel rewrites where /api prefix may be stripped
+app.use((req: Request, res: Response, next: () => void) => {
+  if (req.url && !req.url.startsWith('/api') && (
+    req.url.startsWith('/admin') ||
+    req.url.startsWith('/auth') ||
+    req.url.startsWith('/license') ||
+    req.url.startsWith('/visitor') ||
+    req.url.startsWith('/public') ||
+    req.url.startsWith('/health')
+  )) {
+    req.url = '/api' + req.url;
+  }
+  next();
+});
 
 const AUTH_FILE = envInfo.authVaultFilePath;
 
@@ -33,10 +58,15 @@ const INITIAL_VAULT: VaultData = {
 };
 
 function getVault(): VaultData {
+  const baseDir = typeof import.meta !== 'undefined' && import.meta.dirname ? import.meta.dirname : process.cwd();
   const candidateVaultPaths = [
     AUTH_FILE,
     path.resolve(process.cwd(), 'data', 'auth_vault.json'),
+    path.resolve('/var/task', 'data', 'auth_vault.json'),
     path.resolve('/tmp', 'areen_data', 'auth_vault.json'),
+    path.resolve(baseDir, '../../data', 'auth_vault.json'),
+    path.resolve(baseDir, '../data', 'auth_vault.json'),
+    path.resolve(baseDir, 'data', 'auth_vault.json'),
   ];
 
   for (const p of candidateVaultPaths) {
@@ -740,37 +770,58 @@ app.get('/api/admin/storage-diagnostics', requireAdmin, (req: Request, res: Resp
   return res.json({ success: true, diagnostics });
 });
 
+// Fallback 404 handler for any API endpoint to guarantee JSON response and prevent HTML leaks
+app.all('/api/*', (req: Request, res: Response) => {
+  return res.status(404).json({
+    success: false,
+    error: `مسار API غير موجود: ${req.method} ${req.originalUrl || req.url}`,
+  });
+});
+
 // -------------------------------------------------------------
-// VITE SPA SERVER MOUNT
+// VITE SPA SERVER MOUNT (Dev & Standalone Prod)
 // -------------------------------------------------------------
 async function startServer() {
   const isProd = process.env.NODE_ENV === 'production';
 
   if (!isProd) {
+    // Dynamic import to prevent bundler failures in serverless environments
+    const { createServer: createViteServer } = await import('vite');
     const vite = await createViteServer({
       server: { middlewareMode: true },
       appType: 'spa',
     });
     app.use(vite.middlewares);
   } else {
-    app.use(express.static(path.resolve(process.cwd(), 'dist')));
-    app.get('*', (req: Request, res: Response) => {
-      res.sendFile(path.resolve(process.cwd(), 'dist', 'index.html'));
-    });
+    const distPath = path.resolve(process.cwd(), 'dist');
+    if (fs.existsSync(distPath)) {
+      app.use(express.static(distPath));
+      app.get('*', (req: Request, res: Response) => {
+        const indexPath = path.resolve(distPath, 'index.html');
+        if (fs.existsSync(indexPath)) {
+          res.sendFile(indexPath);
+        } else {
+          res.status(404).send('Not Found');
+        }
+      });
+    }
   }
 
-  const port = process.env.PORT && process.env.PORT !== '8080' ? Number(process.env.PORT) : 3000;
+  const port = Number(process.env.PORT) || 3000;
   app.listen(port, '0.0.0.0', () => {
     console.log(`Al-Areen Golden Den Server running on port ${port}`);
   });
 }
 
-// Only listen when running standalone dev server or container, not in Vercel serverless functions
-const isMainScript = typeof process !== 'undefined' && process.argv && process.argv[1] && (
-  process.argv[1].endsWith('server.ts') || process.argv[1].endsWith('server.js')
+// Listen when running standalone server or container, skip in Vercel serverless functions
+const isVercelServerless = Boolean(
+  process.env.VERCEL ||
+  process.env.VERCEL_ENV ||
+  process.env.NOW_REGION ||
+  process.env.AWS_LAMBDA_FUNCTION_NAME
 );
 
-if (isMainScript && !process.env.VERCEL && !process.env.VERCEL_ENV) {
+if (!isVercelServerless) {
   startServer();
 }
 

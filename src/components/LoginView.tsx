@@ -232,8 +232,8 @@ export const LoginView: React.FC<LoginViewProps> = ({
                   <span className="text-xs font-black text-[#ffd700] block">
                     مركز طلب وبرمجة بوتات التواصل والتداول
                   </span>
-                  <span className="text-[10px] text-[#38bdf8] font-semibold">
-                    إنشاء بوتات تواصل، تيليجرام، وتفعيل فوري
+                  <span className="text-[10px] text-[#38bdf8] font-bold">
+                    Hasone Trading · تطوير وبرمجة بوتات تيليجرام وتداول مخصصة
                   </span>
                 </div>
               </div>
@@ -267,7 +267,7 @@ export const LoginView: React.FC<LoginViewProps> = ({
                     <span className="w-2.5 h-2.5 rounded-full bg-[#22c55e] animate-ping" title="متصل الآن" />
                   </div>
                   <span className="text-[11px] text-[#cfb780] block mt-1 font-bold">
-                    معرف المطور الرسمي · برمجة بوتات التواصل والرد الآلي
+                    المطور الرسمي Hasone Trading · برمجة وتطوير بوتات التواصل والصفقات الزمنية
                   </span>
                 </div>
               </a>

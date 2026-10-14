@@ -88,27 +88,51 @@ export function detectEnvironment(): EnvironmentInfo {
 
 export const envInfo = detectEnvironment();
 
+export function getCandidateSourceDataDirs(): string[] {
+  const baseDir = typeof import.meta !== 'undefined' && import.meta.dirname ? import.meta.dirname : process.cwd();
+  const dirs = [
+    path.resolve(process.cwd(), 'data'),
+    path.resolve('/var/task', 'data'),
+    path.resolve(baseDir, 'data'),
+    path.resolve(baseDir, '../data'),
+    path.resolve(baseDir, '../../data'),
+  ];
+  return dirs.filter((d, i, arr) => arr.indexOf(d) === i);
+}
+
+export function findSourceDataFile(fileName: string): string | null {
+  for (const dir of getCandidateSourceDataDirs()) {
+    const full = path.resolve(dir, fileName);
+    if (fs.existsSync(full)) {
+      return full;
+    }
+  }
+  return null;
+}
+
 /**
  * تهيئة وتأمين مسار التخزين ومنع فقدان البيانات عند إعادة النشر
  */
 export function ensureStorageInitialized(): void {
   ensureDataDirectory();
 
-  // نسخ ملفات البذور المبدئية عند الحاجة لضمان استمرارية التراخيص والأكواد
-  const seedSourceDir = path.resolve(process.cwd(), 'data');
-  const seedDbPath = path.resolve(seedSourceDir, 'db.json');
-  const seedVaultPath = path.resolve(seedSourceDir, 'auth_vault.json');
   const targetDbPath = path.resolve(DATA_DIR, 'db.json');
   const targetVaultPath = path.resolve(DATA_DIR, 'auth_vault.json');
 
   try {
-    if (!fs.existsSync(targetDbPath) && fs.existsSync(seedDbPath)) {
-      fs.copyFileSync(seedDbPath, targetDbPath);
-      console.log('[Database] ✅ Successfully seeded db.json into persistent storage.');
+    if (!fs.existsSync(targetDbPath)) {
+      const srcDb = findSourceDataFile('db.json');
+      if (srcDb && srcDb !== targetDbPath) {
+        fs.copyFileSync(srcDb, targetDbPath);
+        console.log(`[Database] ✅ Successfully seeded db.json into persistent storage from ${srcDb}`);
+      }
     }
-    if (!fs.existsSync(targetVaultPath) && fs.existsSync(seedVaultPath)) {
-      fs.copyFileSync(seedVaultPath, targetVaultPath);
-      console.log('[Database] ✅ Successfully seeded auth_vault.json into persistent storage.');
+    if (!fs.existsSync(targetVaultPath)) {
+      const srcVault = findSourceDataFile('auth_vault.json');
+      if (srcVault && srcVault !== targetVaultPath) {
+        fs.copyFileSync(srcVault, targetVaultPath);
+        console.log(`[Database] ✅ Successfully seeded auth_vault.json into persistent storage from ${srcVault}`);
+      }
     }
   } catch (err) {
     console.warn('[Database] Seed initialization notice:', err);

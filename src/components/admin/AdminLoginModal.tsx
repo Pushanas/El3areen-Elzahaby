@@ -61,19 +61,36 @@ export const AdminLoginModal: React.FC<AdminLoginModalProps> = ({
         body: JSON.stringify({ password: clean }),
       });
 
-      const data = await res.json();
-      if (res.ok && data.success && data.token) {
+      const contentType = res.headers.get('content-type') || '';
+      let data: any = null;
+      if (contentType.includes('application/json')) {
+        data = await res.json();
+      } else {
+        const text = await res.text();
+        try {
+          data = JSON.parse(text);
+        } catch {
+          // Response was not JSON (e.g. HTML from bad rewrite or gateway)
+        }
+      }
+
+      if (res.ok && data?.success && data?.token) {
         sessionStorage.setItem('areen_admin_token', data.token);
         onLoginSuccess(data.token);
         onClose();
       } else {
-        if (data.lockedSeconds) {
+        if (data?.lockedSeconds) {
           setLockedSeconds(data.lockedSeconds);
         }
-        setError(data.error || 'فشل التحقق من هوية المدير');
+        setError(
+          data?.error ||
+          (res.status === 401
+            ? 'كلمة مرور الإدارة غير صحيحة.'
+            : `تعذر إتمام الدخول (رمز الاستجابة: ${res.status})`)
+        );
       }
     } catch {
-      setError('تعذر الاتصال بخادم الإدارة');
+      setError('تعذر الاتصال بخادم الإدارة. يرجى التحقق من اتصالك بالإنترنت.');
     } finally {
       setLoading(false);
     }
@@ -166,7 +183,7 @@ export const AdminLoginModal: React.FC<AdminLoginModalProps> = ({
         </form>
 
         <div className="mt-4 pt-3 border-t border-[#d4af37]/15 text-center text-[10px] text-[#716143]">
-          منظومة محمية بالكامل بموجب بروتوكول العرين الذهبي المشفر
+          Hasone Trading Security · منظومة محمية بالكامل بموجب بروتوكول العرين الذهبي المشفر
         </div>
       </div>
     </div>

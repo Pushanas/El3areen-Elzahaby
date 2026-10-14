@@ -161,12 +161,15 @@ export interface AppDatabase {
   settings: SystemSettings;
 }
 
+import { FALLBACK_DATABASE } from './seedFallback.ts';
+
 // Master encryption keys (supports both configured env and default fallback)
 const DEFAULT_CIPHER_SECRET = 'AREEN_GOLDEN_DEN_MASTER_CIPHER_SECRET_2026_KEY';
 const DEFAULT_CIPHER_KEY = crypto.createHash('sha256').update(DEFAULT_CIPHER_SECRET).digest();
 
-export const ACTIVE_CIPHER_KEY = process.env.CIPHER_SECRET
-  ? crypto.createHash('sha256').update(process.env.CIPHER_SECRET).digest()
+const cipherSecretEnv = (process.env.CIPHER_SECRET || '').trim().replace(/^["']|["']$/g, '');
+export const ACTIVE_CIPHER_KEY = cipherSecretEnv
+  ? crypto.createHash('sha256').update(cipherSecretEnv).digest()
   : DEFAULT_CIPHER_KEY;
 
 export function encryptString(plaintext: string): string {
@@ -302,10 +305,15 @@ class DatabaseEngine {
   }
 
   private load(): AppDatabase {
+    const baseDir = typeof import.meta !== 'undefined' && import.meta.dirname ? import.meta.dirname : process.cwd();
     const candidatePaths = [
       DB_FILE,
       path.resolve(process.cwd(), 'data', 'db.json'),
+      path.resolve('/var/task', 'data', 'db.json'),
       path.resolve('/tmp', 'areen_data', 'db.json'),
+      path.resolve(baseDir, '../../data', 'db.json'),
+      path.resolve(baseDir, '../data', 'db.json'),
+      path.resolve(baseDir, 'data', 'db.json'),
     ];
 
     let candidateWithoutCodes: AppDatabase | null = null;
@@ -337,6 +345,14 @@ class DatabaseEngine {
     if (candidateWithoutCodes) {
       this.memoryDb = candidateWithoutCodes;
       return candidateWithoutCodes;
+    }
+
+    // Use bundled pre-seeded database (includes initial admin and pre-generated codes)
+    if (FALLBACK_DATABASE && Array.isArray(FALLBACK_DATABASE.codes) && FALLBACK_DATABASE.codes.length > 0) {
+      this.memoryDb = JSON.parse(JSON.stringify(FALLBACK_DATABASE));
+      this.flushSync();
+      console.log(`[DB] ✅ Initialized DB from bundled seed data with ${this.memoryDb?.codes.length} codes.`);
+      return this.memoryDb!;
     }
 
     const initial = getInitialDatabase();

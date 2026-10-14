@@ -605,8 +605,8 @@ export default function App() {
               href="https://t.me/Qv_Dev"
               target="_blank"
               rel="noopener noreferrer"
-              title="تواصل مع المطور لبرمجة البوتات @Qv_Dev"
-              className="inline-flex items-center gap-2 px-3 py-1.5 rounded-xl bg-[#0f0b07] hover:bg-[#1a1209] border border-[#d4af37]/30 hover:border-[#229ED9]/60 text-[#cfb780] hover:text-[#38bdf8] transition-all cursor-pointer shadow-sm group"
+              title="Hasone Trading — تواصل مع المطور لبرمجة البوتات @Qv_Dev"
+              className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-xl bg-[#0f0b07] hover:bg-[#1a1209] border border-[#d4af37]/35 hover:border-[#229ED9] text-[#cfb780] hover:text-[#38bdf8] transition-all cursor-pointer shadow-md group"
             >
               <div className="w-5 h-5 rounded-lg bg-[#229ED9]/20 group-hover:bg-[#229ED9] text-[#229ED9] group-hover:text-white flex items-center justify-center shrink-0 transition-colors">
                 <svg viewBox="0 0 24 24" fill="currentColor" className="w-3 h-3 fill-current">
@@ -614,7 +614,8 @@ export default function App() {
                 </svg>
               </div>
               <span className="text-[11px] font-bold font-mono text-[#38bdf8]">@Qv_Dev</span>
-              <span className="text-[10px] text-[#8e7e60]">· لإنشاء وبرمجة البوتات</span>
+              <span className="text-[10px] text-[#ffd700] font-bold">Hasone Trading</span>
+              <span className="text-[10px] text-[#8e7e60]">· لبرمجة وتطوير البوتات</span>
             </a>
           </div>
         </main>

